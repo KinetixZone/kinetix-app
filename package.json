@@ -1,6 +1,6 @@
 {
   "name": "kinetix-app",
-  "version": "7.0.0",
+  "version": "7.5.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,7 +12,8 @@
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "@google/genai": "^1.39.0",
-    "@supabase/supabase-js": "^2.45.0"
+    "@supabase/supabase-js": "^2.45.0",
+    "lucide-react": "^0.447.0"
   },
   "devDependencies": {
     "@types/react": "19.0.0",
