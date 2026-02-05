@@ -1,1 +1,1 @@
-export const aiService = { isConfigured: !!process.env.API_KEY, generateWorkoutPlan: async () => null, getTechnicalAdvice: async () => "Ops" };
+export const aiService = { isConfigured: !!process.env.API_KEY };
