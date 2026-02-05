@@ -1,1 +1,1 @@
-import React from 'react'; export const WorkoutManager = () => null;
+import React from 'react'; export const WorkoutManager = () => <div className="p-10">Módulo Manager</div>;
