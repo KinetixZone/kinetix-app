@@ -1,1 +1,1 @@
-export const authService = { login: async () => ({ user: null }), logout: () => {}, getSession: async () => null };
+export const authService = { login: async () => ({ user: null }), logout: () => {} };
