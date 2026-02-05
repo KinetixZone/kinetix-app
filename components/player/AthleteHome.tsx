@@ -1,1 +1,1 @@
-import React from 'react'; export const AthleteHome = () => <div className="p-10"><h1>Athlete Terminal</h1></div>;
+import React from 'react'; export const AthleteHome = () => <div className="p-10"><h1>Atleta</h1></div>;
