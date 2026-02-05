@@ -1,1 +1,1 @@
-import React from 'react'; export const ExerciseBlockEditor = () => <div className="p-4"><h1>Block Editor Real</h1></div>;
+import React from 'react'; export const ExerciseBlockEditor = () => <div className="p-4"><h1>Block Editor</h1></div>;
