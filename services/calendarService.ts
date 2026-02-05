@@ -1,1 +1,1 @@
-export const calendarService = { getEvents: () => [], saveEvent: () => {}, getScheduledSession: () => null, projectMesocycle: () => ({ success: true }) };
+export const calendarService = { getEvents: () => [], saveEvent: () => {}, getScheduledSession: () => null, projectMesocycle: () => ({ success: true }), batchScheduleVenue: () => 0, clearDaySessions: () => {} };
