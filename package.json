@@ -1,0 +1,14 @@
+{
+  "name": "kinetix-elite-app",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "@google/genai": "^1.39.0",
+    "@supabase/supabase-js": "^2.45.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  }
+}
