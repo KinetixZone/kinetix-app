@@ -7,7 +7,7 @@ import { AdminDashboard } from './components/admin/AdminDashboard';
 export default function App() {
   const [user, setUser] = useState(storageService.getUser());
   const [view, setView] = useState('home');
-  if (!user) return <div className="bg-black h-screen text-white flex items-center justify-center font-black">KINETIX ELITE</div>;
+  if (!user) return <div className="bg-black h-screen text-white flex items-center justify-center font-black uppercase tracking-widest">KINETIX ELITE</div>;
   return (
     <div className="min-h-screen bg-[#050507] text-white">
       {view === 'home' && (user.role === 'coach' || user.role === 'owner' ? <CoachHome onViewChange={setView} /> : <AthleteHome user={user} />)}
