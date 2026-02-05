@@ -1,1 +1,1 @@
-import React from 'react'; export const AthleteHome = ({ user }) => <div>Hola {user.name}</div>;
+import React from 'react'; export const AthleteHome = ({ user, onLogout }) => <div className="p-10 text-white"><h1>Hola {user?.name}</h1><button onClick={onLogout} className="mt-4 opacity-30 uppercase font-black">Cerrar Sesión</button></div>;
