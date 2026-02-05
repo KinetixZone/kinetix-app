@@ -1,1 +1,1 @@
-import { GoogleGenAI } from "@google/genai"; export const aiService = { isConfigured: !!process.env.API_KEY, generateWorkoutPlan: async () => null, getTechnicalAdvice: async () => "Offline" };
+import { GoogleGenAI } from "@google/genai"; export const aiService = { isConfigured: !!process.env.API_KEY, generateWorkoutPlan: async (p) => null, getTechnicalAdvice: async (q) => "Modo Online Activo" };
