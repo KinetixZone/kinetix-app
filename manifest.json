@@ -1,1 +1,1 @@
-{ "name": "Kinetix Elite", "short_name": "Kinetix", "start_url": ".", "display": "standalone" }
+{"name": "Kinetix Elite Platform", "short_name": "Kinetix", "start_url": ".", "display": "standalone", "background_color": "#050507", "theme_color": "#050507"}
