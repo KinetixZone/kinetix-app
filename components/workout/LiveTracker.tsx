@@ -1,1 +1,1 @@
-import React from 'react'; export const LiveTracker = () => <div className="p-10"><h1>Live Biomechanics Tracker Real</h1></div>;
+import React from 'react'; export const LiveTracker = () => <div className="p-10"><h1>Tracker Online</h1></div>;
