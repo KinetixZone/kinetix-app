@@ -1,1 +1,1 @@
-export const EXERCISES_DB = [{ id: 'ch-1', name: 'Press Horizontal', muscleGroup: 'Pecho' }];
+export const EXERCISES_DB = [];
