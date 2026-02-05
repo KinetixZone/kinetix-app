@@ -1,0 +1,4 @@
+{
+  "requestFramePermissions": ["camera", "microphone"],
+  "name": "kinetix-elite-app"
+}
