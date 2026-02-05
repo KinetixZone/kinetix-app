@@ -1,1 +1,1 @@
-import React from 'react'; export const WorkoutManager = () => <div className="p-10">Manager Activo</div>;
+import React from 'react'; export const WorkoutManager = () => <div className="p-10"><h1>Routine Manager</h1></div>;
