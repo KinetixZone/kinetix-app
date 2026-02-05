@@ -1,1 +1,1 @@
-import React from 'react'; export const ExerciseLibrary = () => <div className="p-10"><h1>Library Real</h1></div>;
+import React from 'react'; export const ExerciseLibrary = () => <div className="p-10"><h1>Exercise Lab</h1></div>;
