@@ -1,1 +1,1 @@
-import React from 'react'; export const AthleteCRM = () => <div className="p-10"><h1>CRM System</h1></div>;
+import React from 'react'; export const AthleteCRM = () => null;
