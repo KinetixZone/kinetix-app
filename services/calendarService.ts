@@ -1,1 +1,1 @@
-export const calendarService = { getEvents: () => [], saveEvent: () => {}, getScheduledSession: () => null, clearDaySessions: () => {} };
+export const calendarService = { getScheduledSession: () => null, getEvents: () => [] };
