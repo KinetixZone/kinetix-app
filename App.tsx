@@ -1,6 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { storageService } from './services/storageService';
+import { CoachHome } from './components/coach/CoachHome';
+import { AthleteCRM } from './components/coach/AthleteCRM';
+import { WorkoutManager } from './components/coach/WorkoutManager';
+import { AthleteHome } from './components/player/AthleteHome';
+import { AdminDashboard } from './components/admin/AdminDashboard';
+
 export default function App() {
   const [user, setUser] = useState(storageService.getUser());
-  return <div className="min-h-screen bg-[#050507] text-white flex items-center justify-center p-10"><div><h1 className="text-6xl font-black italic uppercase tracking-tighter mb-4">Kinetix <span className="text-red-600">Elite</span></h1><p className="text-white/40 uppercase tracking-widest text-xs">Mirroring de ADN v11.0.0 Activo</p></div></div>;
+  const [view, setView] = useState('home');
+
+  if (!user) return <div className="h-screen bg-[#050507] text-white flex items-center justify-center font-black italic text-6xl animate-pulse">KINETIX ELITE</div>;
+
+  return (
+    <div className="min-h-screen bg-[#050507] text-white">
+      {view === 'home' && (user.role === 'coach' || user.role === 'owner' ? <CoachHome onViewChange={setView} /> : <AthleteHome />)}
+      {view === 'admin_dashboard' && <AdminDashboard currentUser={user} onNavigate={setView} />}
+      {view === 'crm' && <AthleteCRM />}
+      {view === 'manager' && <WorkoutManager />}
+    </div>
+  );
 }
