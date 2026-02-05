@@ -1,9 +1,10 @@
-const KEYS = { USER: 'kinetix_user', SYSTEM_CONFIG: 'kinetix_system_config' };
 export const storageService = {
-  getSystemConfig: () => JSON.parse(localStorage.getItem(KEYS.SYSTEM_CONFIG) || '{"enableAI":true}'),
-  saveSystemConfig: (c) => localStorage.setItem(KEYS.SYSTEM_CONFIG, JSON.stringify(c)),
-  getUser: () => JSON.parse(localStorage.getItem(KEYS.USER) || 'null'),
-  saveUser: (u) => localStorage.setItem(KEYS.USER, JSON.stringify(u)),
-  logout: () => localStorage.removeItem(KEYS.USER),
-  getStorageUsage: () => ({ usedKB: 100, percentage: 2 })
+  getSystemConfig: () => JSON.parse(localStorage.getItem('kinetix_system_config') || '{"enableAI":true}'),
+  saveSystemConfig: (c) => localStorage.setItem('kinetix_system_config', JSON.stringify(c)),
+  getUser: () => JSON.parse(localStorage.getItem('kinetix_user') || 'null'),
+  saveUser: (u) => localStorage.setItem('kinetix_user', JSON.stringify(u)),
+  logout: () => localStorage.removeItem('kinetix_user'),
+  getTemplates: () => [],
+  getExercises: () => [],
+  getStorageUsage: () => ({ usedKB: 100, percentage: 5 })
 };
