@@ -1,1 +1,1 @@
-import React from 'react'; export const ExerciseLibrary = () => null;
+import React from 'react'; export const ExerciseLibrary = () => <div className="p-10">Módulo Biblioteca</div>;
