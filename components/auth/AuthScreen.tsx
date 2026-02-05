@@ -1,1 +1,1 @@
-import React from 'react'; export const AuthScreen = () => <div className="p-10"><h1>Auth ID</h1></div>;
+import React from 'react'; export const AuthScreen = () => null;
