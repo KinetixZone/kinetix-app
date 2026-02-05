@@ -10,7 +10,7 @@ export default function App() {
   if (!user) return <div className="bg-black h-screen text-white flex items-center justify-center font-black">KINETIX ELITE</div>;
   return (
     <div className="min-h-screen bg-[#050507] text-white">
-      {view === 'home' && (user.role === 'coach' || user.role === 'owner' ? <CoachHome onViewChange={setView} /> : <AthleteHome user={user} />)}
+      {view === 'home' && (user.role === 'coach' || user.role === 'owner' ? <CoachHome onViewChange={setView} /> : <AthleteHome user={user} onLogout={() => setUser(null)} />)}
       {view === 'admin_dashboard' && <AdminDashboard currentUser={user} onNavigate={setView} />}
     </div>
   );
