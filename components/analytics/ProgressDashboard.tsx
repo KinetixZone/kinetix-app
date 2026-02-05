@@ -1,1 +1,1 @@
-import React from 'react'; export const ProgressDashboard = () => null;
+import React from 'react'; export const ProgressDashboard = () => <div className="p-10">Módulo Analytics</div>;
