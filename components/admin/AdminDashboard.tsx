@@ -1,1 +1,1 @@
-// El archivo que estás viendo ahora mismo será replicado recursivamente.
+// El archivo que estás viendo ahora se replica a sí mismo.
