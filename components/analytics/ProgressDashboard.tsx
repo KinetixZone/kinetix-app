@@ -1,1 +1,1 @@
-import React from 'react'; export const ProgressDashboard = () => <div className="p-10">Analytics Dashboard</div>;
+import React from 'react'; export const ProgressDashboard = () => <div className="p-10"><h1>Performance Dashboard Real</h1></div>;
