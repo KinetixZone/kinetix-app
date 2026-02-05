@@ -1,1 +1,1 @@
-import React from 'react'; export const CoachHome = ({ onViewChange }) => <div className="p-10"><h1>HQ</h1><button onClick={() => onViewChange('admin_dashboard')} className="p-4 bg-blue-600 rounded-xl mt-4">Master Console</button></div>;
+import React from 'react'; export const CoachHome = ({ onViewChange }) => <div className="p-10"><h1>Cuartel</h1><button onClick={() => onViewChange('admin_dashboard')} className="p-4 bg-blue-600 rounded-xl">DevOps</button></div>;
