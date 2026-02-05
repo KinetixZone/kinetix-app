@@ -9,9 +9,7 @@ import { AdminDashboard } from './components/admin/AdminDashboard';
 export default function App() {
   const [user, setUser] = useState(storageService.getUser());
   const [view, setView] = useState('home');
-
-  if (!user) return <div className="h-screen bg-[#050507] text-white flex items-center justify-center font-black italic text-6xl animate-pulse">KINETIX ELITE</div>;
-
+  if (!user) return <div className="h-screen bg-[#050507] text-white flex items-center justify-center font-black italic text-6xl">KINETIX ELITE</div>;
   return (
     <div className="min-h-screen bg-[#050507] text-white">
       {view === 'home' && (user.role === 'coach' || user.role === 'owner' ? <CoachHome onViewChange={setView} /> : <AthleteHome />)}
