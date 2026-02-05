@@ -1,1 +1,1 @@
-export const soundService = { playTone: () => {}, beepLow: () => {}, beepHigh: () => {} };
+export const soundService = { playTone: () => {} };
