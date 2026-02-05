@@ -1,1 +1,1 @@
-export const EXERCISES_DB = [];
+export const EXERCISES_DB = [{ id: 'ch-1', name: 'Press Horizontal', muscleGroup: 'Pecho', videoUrl: 'https://www.youtube.com/embed/g80G_jaAxvs' }];
