@@ -1,0 +1,1 @@
+// Aquí iría el contenido principal de la App para que no pese tanto un solo archivo
