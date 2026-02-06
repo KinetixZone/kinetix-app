@@ -17,6 +17,8 @@
             -webkit-tap-highlight-color: transparent;
         }
         #root { min-height: 100vh; }
+        
+        /* Custom Scrollbar Milspec */
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: #050507; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
@@ -24,7 +26,7 @@
 
         @keyframes scanline {
             0% { transform: translateY(-100%); opacity: 0; }
-            50% { opacity: 0.1; }
+            50% { opacity: 0.15; }
             100% { transform: translateY(100vh); opacity: 0; }
         }
         .scanline {
@@ -32,15 +34,24 @@
             top: 0;
             left: 0;
             width: 100%;
-            height: 2px;
+            height: 4px;
             background: linear-gradient(to right, transparent, #ef4444, transparent);
-            animation: scanline 6s linear infinite;
+            animation: scanline 8s linear infinite;
             pointer-events: none;
-            z-index: 50;
+            z-index: 9999;
         }
+
         .bg-grid {
             background-image: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
             background-size: 30px 30px;
+        }
+
+        @keyframes pulse-red {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.6; }
+        }
+        .glow-red {
+            animation: pulse-red 4s ease-in-out infinite;
         }
     </style>
 <script type="importmap">
