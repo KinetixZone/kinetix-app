@@ -23,7 +23,7 @@ class AuthService {
         const isAthlete = athletes.some(a => a.email.toLowerCase() === emailLower);
 
         if (!isOwner && !isStaff && !isAthlete) {
-            return { success: false, error: "IDENTIDAD NO REGISTRADA EN EL SISTEMA ELITE" };
+            return { success: false, error: "IDENTIDAD NO RECONOCIDA EN EL SISTEMA ELITE" };
         }
 
         // Validación de Seguridad Alpha para Owners
@@ -32,7 +32,7 @@ class AuthService {
                 return { success: false, error: "AUTORIZACIÓN ALPHA REQUERIDA" };
             }
             if (password !== this.MASTER_KEY) {
-                return { success: false, error: "CLAVE MAESTRA INCORRECTA. ACCESO BLOQUEADO." };
+                return { success: false, error: "CLAVE ALPHA INVÁLIDA. ACCESO BLOQUEADO." };
             }
         }
 
