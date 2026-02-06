@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; 
 import { Workout, User, Goal, UserLevel, ProgressState } from './types/kinetix';
 import { LiveTracker } from './components/workout/LiveTracker';
 import { AthleteHome } from './components/player/AthleteHome';
