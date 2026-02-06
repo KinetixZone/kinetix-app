@@ -23,13 +23,13 @@ class AuthService {
         const isAthlete = athletes.some(a => a.email.toLowerCase() === emailLower);
 
         if (!isOwner && !isStaff && !isAthlete) {
-            return { success: false, error: "Credencial no reconocida. El Personal de Mando debe darte de alta." };
+            return { success: false, error: "IDENTIDAD NO RECONOCIDA EN LA RED ELITE" };
         }
 
         // Validación de Seguridad Alpha para Owners
         if (isOwner) {
             if (!password) {
-                return { success: false, error: "SE REQUIERE CLAVE MAESTRA" };
+                return { success: false, error: "AUTORIZACIÓN ALPHA REQUERIDA" };
             }
             if (password !== this.MASTER_KEY) {
                 return { success: false, error: "CLAVE MAESTRA INCORRECTA. ACCESO DENEGADO." };
