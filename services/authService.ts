@@ -1,112 +1,104 @@
 
-import { supabase } from '../lib/supabaseClient';
-import { User, UserRole, Goal, UserLevel } from '../types/kinetix';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { User } from '../types/kinetix';
 import { storageService } from './storageService';
 
 class AuthService {
-    
-    // Iniciar Sesión con Email
-    async login(email: string, password: string): Promise<{ user: User | null, error: string | null }> {
-        try {
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password
-            });
+    private readonly ADMIN_EMAILS = ['les_barrera@outlook.com', 'jorge02gonzalez@outlook.com'];
+    private readonly MASTER_KEY = 'kinetix.2302';
 
-            if (error) return { user: null, error: error.message };
-            if (!data.user) return { user: null, error: 'No se recibieron datos del usuario.' };
-
-            // Intentar recuperar perfil de la base de datos "profiles" (Si existe en un futuro)
-            // Por ahora, construimos el usuario localmente o recuperamos del localStorage si ya existe
-            let appUser = storageService.getUser();
-            
-            // Si no hay datos locales o el email es diferente, creamos estructura base
-            if (!appUser || appUser.email !== email) {
-                appUser = {
-                    id: data.user.id,
-                    email: data.user.email!,
-                    name: data.user.user_metadata?.full_name || email.split('@')[0],
-                    role: (data.user.user_metadata?.role as UserRole) || 'client',
-                    goal: Goal.PERFORMANCE,
-                    level: UserLevel.BEGINNER,
-                    daysPerWeek: 3,
-                    equipment: [],
-                    streak: 0,
-                    createdAt: new Date().toISOString(),
-                    isActive: true
-                };
-            }
-
-            // Guardar sesión local para que la app funcione offline-first
-            storageService.saveUser(appUser);
-            return { user: appUser, error: null };
-
-        } catch (e: any) {
-            console.error("Login error:", e);
-            // Mensaje amigable si falla por configuración
-            if (e.message && e.message.includes('supabaseUrl')) {
-                return { user: null, error: "Error de configuración: Faltan claves de API." };
-            }
-            return { user: null, error: e.message || "Error desconocido de conexión." };
-        }
+    // Verificar si el correo requiere Clave Maestra
+    isAdminEmail(email: string): boolean {
+        return this.ADMIN_EMAILS.includes(email.toLowerCase());
     }
 
-    // Registro de Nuevo Usuario
-    async register(email: string, password: string, name: string): Promise<{ success: boolean, error: string | null }> {
-        try {
-            const { data, error } = await supabase.auth.signUp({
-                email,
-                password,
-                options: {
-                    data: {
-                        full_name: name,
-                        role: 'client' // Por defecto todos son clientes
-                    }
-                }
-            });
+    // Iniciar Sesión por Correo (Handshake)
+    async requestAccess(email: string, password?: string): Promise<{ success: boolean, error: string | null }> {
+        const emailLower = email.toLowerCase();
+        const athletes = storageService.getAthletes();
+        const staff = storageService.getStaff();
+        
+        const isOwner = this.isAdminEmail(emailLower);
+        const isStaff = staff.some(s => s.email.toLowerCase() === emailLower);
+        const isAthlete = athletes.some(a => a.email.toLowerCase() === emailLower);
 
+        if (!isOwner && !isStaff && !isAthlete) {
+            return { success: false, error: "Credencial no reconocida. El Personal de Mando debe darte de alta." };
+        }
+
+        // Validación de Seguridad Alpha para Owners
+        if (isOwner) {
+            if (!password) {
+                return { success: false, error: "SE REQUIERE CLAVE MAESTRA" };
+            }
+            if (password !== this.MASTER_KEY) {
+                return { success: false, error: "CLAVE MAESTRA INCORRECTA. ACCESO DENEGADO." };
+            }
+        }
+
+        if (!isSupabaseConfigured) {
+            return { success: true, error: null };
+        }
+
+        try {
+            const { error } = await supabase.auth.signInWithOtp({
+                email: email,
+                options: { emailRedirectTo: window.location.origin },
+            });
             if (error) return { success: false, error: error.message };
             return { success: true, error: null };
-
         } catch (e: any) {
             return { success: false, error: e.message };
         }
     }
 
-    // Cerrar Sesión
-    async logout() {
-        try {
-            await supabase.auth.signOut();
-        } catch (e) {
-            console.warn("Error al cerrar sesión en Supabase (posiblemente ya cerrada o sin conexión)");
+    // Validar y Cargar Perfil
+    async finalizeLogin(email: string): Promise<User | null> {
+        const athletes = storageService.getAthletes();
+        const staff = storageService.getStaff();
+        const emailLower = email.toLowerCase();
+
+        // Prioridad 1: Dueños (Leslie / Jorge)
+        if (this.isAdminEmail(emailLower)) {
+            const owner: User = {
+                id: emailLower === 'les_barrera@outlook.com' ? 'owner-leslie' : 'owner-jorge',
+                name: emailLower === 'les_barrera@outlook.com' ? 'Leslie' : 'Jorge González',
+                email: emailLower,
+                role: 'owner',
+                goal: 'Rendimiento' as any,
+                level: 'Avanzado' as any,
+                daysPerWeek: 7,
+                equipment: [],
+                streak: 100,
+                createdAt: new Date().toISOString(),
+                isActive: true
+            };
+            storageService.saveUser(owner);
+            return owner;
         }
-        storageService.logout();
+
+        // Prioridad 2: Staff Dinámico
+        const staffMember = staff.find(s => s.email.toLowerCase() === emailLower);
+        if (staffMember) {
+            storageService.saveUser(staffMember);
+            return staffMember;
+        }
+
+        // Prioridad 3: Atleta
+        const athlete = athletes.find(a => a.email.toLowerCase() === emailLower);
+        if (athlete) {
+            storageService.saveUser(athlete);
+            return athlete;
+        }
+
+        return null;
     }
 
-    // Recuperar sesión activa al recargar
-    async getSession(): Promise<User | null> {
-        try {
-            // Verificar si tenemos conexión válida antes de llamar a auth
-            // Esto evita errores de red innecesarios si estamos en modo placeholder
-            const url = (supabase as any).supabaseUrl;
-            if (url && url.includes('placeholder')) {
-                return null;
-            }
-
-            const { data, error } = await supabase.auth.getSession();
-            
-            if (error) {
-                return null;
-            }
-
-            if (data.session?.user) {
-                // Sincronizar con lo que tenemos en local storage
-                return storageService.getUser(); 
-            }
-        } catch (e) {
-            console.warn("Kinetix Auth: No se pudo verificar sesión (posiblemente sin conexión o config incompleta).");
+    async logout() {
+        storageService.logout();
+        if (isSupabaseConfigured) {
+            await supabase.auth.signOut();
         }
-        return null;
     }
 }
 
