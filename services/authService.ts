@@ -1,18 +1,25 @@
-
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { User } from '../types/kinetix';
 import { storageService } from './storageService';
 
 class AuthService {
-    private readonly ADMIN_EMAILS = ['les_barrera@outlook.com', 'jorge02gonzalez@outlook.com'];
+    // Lista maestra de administradores autorizados
+    private readonly ADMIN_EMAILS = [
+        'les_barrera@outlook.com', 
+        'jorge02gonzalez@outlook.com',
+        'kinetixzone@outlook.com',
+        'kinetixzone@gmail.com'
+    ];
+    
     private readonly MASTER_KEY = 'kinetix.2302';
 
-    // Verificar si el correo requiere Clave Maestra
+    // Verificar si el correo requiere Clave Maestra Alpha
     isAdminEmail(email: string): boolean {
+        if (!email) return false;
         return this.ADMIN_EMAILS.includes(email.toLowerCase());
     }
 
-    // Iniciar Sesión por Correo (Handshake)
+    // Iniciar Sesión con protocolo de seguridad
     async requestAccess(email: string, password?: string): Promise<{ success: boolean, error: string | null }> {
         const emailLower = email.toLowerCase();
         const athletes = storageService.getAthletes();
@@ -22,11 +29,12 @@ class AuthService {
         const isStaff = staff.some(s => s.email.toLowerCase() === emailLower);
         const isAthlete = athletes.some(a => a.email.toLowerCase() === emailLower);
 
+        // Si no está en ninguna lista, denegar inmediatamente
         if (!isOwner && !isStaff && !isAthlete) {
             return { success: false, error: "IDENTIDAD NO RECONOCIDA EN EL SISTEMA ELITE" };
         }
 
-        // Validación de Seguridad Alpha para Owners
+        // Validación de Seguridad Alpha para Administradores
         if (isOwner) {
             if (!password) {
                 return { success: false, error: "AUTORIZACIÓN ALPHA REQUERIDA" };
@@ -36,6 +44,7 @@ class AuthService {
             }
         }
 
+        // Si Supabase no está configurado, permitimos el acceso local para desarrollo/demo
         if (!isSupabaseConfigured) {
             return { success: true, error: null };
         }
@@ -52,17 +61,22 @@ class AuthService {
         }
     }
 
-    // Validar y Cargar Perfil
+    // Finalizar proceso de login y cargar el perfil correspondiente
     async finalizeLogin(email: string): Promise<User | null> {
         const athletes = storageService.getAthletes();
         const staff = storageService.getStaff();
         const emailLower = email.toLowerCase();
 
-        // Prioridad 1: Dueños (Leslie / Jorge)
+        // Prioridad 1: Administradores / Dueños
         if (this.isAdminEmail(emailLower)) {
+            let name = 'Admin Kinetix';
+            if (emailLower.includes('les_barrera')) name = 'Leslie';
+            if (emailLower.includes('jorge02gonzalez')) name = 'Jorge González';
+            if (emailLower.includes('kinetixzone')) name = 'Kinetix Zone Admin';
+
             const owner: User = {
-                id: emailLower === 'les_barrera@outlook.com' ? 'owner-leslie' : 'owner-jorge',
-                name: emailLower === 'les_barrera@outlook.com' ? 'Leslie' : 'Jorge González',
+                id: `owner-${emailLower.split('@')[0]}`,
+                name: name,
                 email: emailLower,
                 role: 'owner',
                 goal: 'Rendimiento' as any,
@@ -77,14 +91,14 @@ class AuthService {
             return owner;
         }
 
-        // Prioridad 2: Staff Dinámico
+        // Prioridad 2: Staff Técnico
         const staffMember = staff.find(s => s.email.toLowerCase() === emailLower);
         if (staffMember) {
             storageService.saveUser(staffMember);
             return staffMember;
         }
 
-        // Prioridad 3: Atleta
+        // Prioridad 3: Atletas
         const athlete = athletes.find(a => a.email.toLowerCase() === emailLower);
         if (athlete) {
             storageService.saveUser(athlete);
