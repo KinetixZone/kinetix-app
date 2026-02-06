@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -6,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#050507">
     <title>KINETIX ELITE | OBSIDIAN OS</title>
-    
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;900&display=swap" rel="stylesheet">
     <style>
@@ -19,8 +17,6 @@
             -webkit-tap-highlight-color: transparent;
         }
         #root { min-height: 100vh; }
-        
-        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: #050507; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
@@ -42,25 +38,19 @@
             pointer-events: none;
             z-index: 50;
         }
-
-        @keyframes pulse-glow {
-            0%, 100% { opacity: 0.3; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(1.1); }
-        }
         .bg-grid {
             background-image: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
             background-size: 30px 30px;
         }
     </style>
-    <script type="importmap">
+<script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@19.0.0",
-    "react-dom": "https://esm.sh/react-dom@19.0.0",
-    "react-dom/": "https://esm.sh/react-dom@19.0.0/",
-    "react/": "https://esm.sh/react@19.0.0/",
-    "@google/genai": "https://esm.sh/@google/genai@1.39.0",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.45.0",
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.40.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.95.3",
     "vite": "https://esm.sh/vite@^7.3.1",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.3"
   }
@@ -70,6 +60,6 @@
 <body>
     <div class="scanline"></div>
     <div id="root"></div>
-    <script type="module" src="./index.tsx"></script>
+    <script type="module" src="/index.tsx"></script>
 </body>
 </html>
