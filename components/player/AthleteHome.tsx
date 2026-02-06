@@ -8,7 +8,7 @@ import { aiService } from '../../services/aiService';
 
 const TechnicalChatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const [messages, setMessages] = useState<{role: 'user' | 'ai', text: string}[]>([
-        { role: 'ai', text: 'Kinetix Ops v120.0 Online. Terminal de Biomecánica y Soporte Técnico. \n\nRecuerda: No estoy autorizado para crear rutinas ni dietas. ¿En qué duda técnica puedo apoyarte hoy?' }
+        { role: 'ai', text: 'Kinetix Ops v125.0 Online. Terminal Técnica.\n\nResuelvo dudas sobre biomecánica, técnica y uso de la app. No estoy autorizado para crear rutinas ni dietas.' }
     ]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -39,7 +39,7 @@ const TechnicalChatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                         <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shadow-[0_0_5px_rgba(59,130,246,0.5)]" />
                         <div>
                             <h3 className="text-sm font-black uppercase italic tracking-widest text-white">Kinetix Ops</h3>
-                            <p className="text-[8px] font-black uppercase text-blue-400/50 tracking-widest">BIOMECHANICS & TECH SUPPORT</p>
+                            <p className="text-[8px] font-black uppercase text-blue-400/50 tracking-widest">TECHNICAL & BIOMECHANICS</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/20 text-white transition-colors">✕</button>
@@ -55,9 +55,9 @@ const TechnicalChatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                     {isLoading && <div className="flex justify-start"><div className="bg-[#1A1A1D] px-4 py-3 rounded-2xl rounded-bl-none border border-white/5 flex gap-1"><div className="w-1.5 h-1.5 bg-blue-500/30 rounded-full animate-bounce" style={{ animationDelay: '0s' }} /><div className="w-1.5 h-1.5 bg-blue-500/30 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} /><div className="w-1.5 h-1.5 bg-blue-500/30 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} /></div></div>}
                 </div>
                 <div className="p-4 bg-[#0F0F11] border-t border-white/5">
-                    <p className="text-[8px] text-white/20 uppercase font-bold mb-2 text-center tracking-widest">Dudas biomecánicas, técnicas o nutrición general solamente</p>
+                    <p className="text-[8px] text-white/20 uppercase font-bold mb-2 text-center tracking-widest italic">Solo consultas técnicas de biomecánica o plataforma</p>
                     <div className="flex gap-2">
-                        <input type="text" className="flex-1 bg-black border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-blue-600 outline-none placeholder-white/20" placeholder="Pregunta sobre técnica o biomecánica..." value={input} onChange={e => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} />
+                        <input type="text" className="flex-1 bg-black border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-blue-600 outline-none placeholder-white/20" placeholder="Ej: ¿Cómo optimizar mi sentadilla?" value={input} onChange={e => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} />
                         <button onClick={handleSend} disabled={!input.trim() || isLoading} className="bg-blue-600 text-white w-12 rounded-xl flex items-center justify-center hover:bg-blue-500 transition-colors">➤</button>
                     </div>
                 </div>
@@ -66,7 +66,6 @@ const TechnicalChatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     );
 };
 
-// Define the interface for props used in AthleteHome
 interface Props {
   user: User;
   currentWorkout: Workout;
