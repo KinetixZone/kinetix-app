@@ -1,241 +1,136 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Workout, ProgressState, WorkoutLog, WorkoutExercise } from '../../types/kinetix';
-import { soundService } from '../../services/soundService';
+import React, { useState, useEffect } from 'react';
+import { User, UserRole } from '../../types/kinetix';
 import { storageService } from '../../services/storageService';
 
 interface Props {
-  workout: Workout;
-  onFinish: (data: ProgressState) => void;
-  user?: any;
+  currentUser: User;
+  onNavigate: (view: any) => void;
 }
 
-const getYoutubeId = (url: string | undefined) => {
-    if (!url || typeof url !== 'string') return null;
-    const cleanUrl = url.trim();
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
-    const match = cleanUrl.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
-};
+export const AdminDashboard: React.FC<Props> = ({ currentUser, onNavigate }) => {
+  const [activeTab, setActiveTab] = useState<'staff' | 'security' | 'devops'>('staff');
+  const [staffList, setStaffList] = useState<User[]>([]);
+  const [newStaffEmail, setNewStaffEmail] = useState('');
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffRole, setNewStaffRole] = useState<UserRole>('coach');
 
-const extractValueFromMatrix = (input: string | undefined, setIndex: number): string => {
-    if (!input) return '--';
-    const parts = input.split(',').map(s => s.trim()).filter(s => s !== '');
-    if (parts.length === 0) return '--';
-    return parts[setIndex] || parts[parts.length - 1] || '--';
-};
+  useEffect(() => {
+    setStaffList(storageService.getStaff());
+  }, []);
 
-const parseWeightValue = (input: string | undefined): number => {
-    if (!input) return 0;
-    const clean = input.toString().replace(/,/g, '.').replace(/[^0-9.]/g, ''); 
-    const val = parseFloat(clean);
-    return isNaN(val) ? 0 : val;
-};
-
-interface TrackingRow {
-    type: 'base' | 'drop' | 'interval' | 'pair' | 'chain';
-    label: string;
-    targetWeight: string;
-    targetReps: string;
-    exerciseName?: string; 
-    exerciseId: string; 
-    globalIndex: number; 
-    videoUrl?: string;
-}
-
-const generateTrackingRows = (ex: WorkoutExercise): TrackingRow[] => {
-    const rows: TrackingRow[] = [];
-    let counter = 0;
-    
-    if (ex.method === 'emom' || ex.method === 'tabata') {
-        const isEmom = ex.method === 'emom';
-        const totalUnits = (isEmom ? ex.emomConfig?.durationMin : ex.tabataConfig?.rounds) || ex.targetSets || 8;
-        const sequence = (isEmom ? ex.emomConfig?.sequence : ex.tabataConfig?.sequence) || [];
-        
-        for (let i = 0; i < totalUnits; i++) {
-             const seqItem = sequence.length > 0 ? sequence[i % sequence.length] : null;
-             rows.push({ 
-                type: 'interval', 
-                label: isEmom ? `Min ${i + 1}` : `Rnd ${i + 1}`, 
-                targetWeight: seqItem?.targetLoad || ex.targetLoad || '0', 
-                targetReps: seqItem?.targetReps || ex.targetReps || '10', 
-                exerciseName: seqItem?.name || ex.name, 
-                exerciseId: seqItem?.exerciseId || ex.exerciseId,
-                globalIndex: counter++,
-                videoUrl: seqItem?.videoUrl || ex.videoUrl
-             });
-        }
-        return rows;
-    }
-
-    if (ex.method === 'biserie' && ex.pair) {
-        for (let i = 0; i < (ex.targetSets || 3); i++) {
-            rows.push({ type: 'pair', label: `A${i + 1}`, targetWeight: extractValueFromMatrix(ex.targetLoad, i), targetReps: extractValueFromMatrix(ex.targetReps, i), exerciseName: ex.name, exerciseId: ex.exerciseId, globalIndex: counter++, videoUrl: ex.videoUrl });
-            rows.push({ type: 'pair', label: `B${i + 1}`, targetWeight: extractValueFromMatrix(ex.pair.targetLoad, i), targetReps: extractValueFromMatrix(ex.pair.targetReps, i), exerciseName: ex.pair.name, exerciseId: ex.pair.exerciseId, globalIndex: counter++, videoUrl: ex.pair.videoUrl });
-        }
-        return rows;
-    }
-
-    for (let i = 0; i < (ex.targetSets || 3); i++) {
-        rows.push({ type: 'base', label: `Set ${i + 1}`, targetWeight: extractValueFromMatrix(ex.targetLoad, i), targetReps: extractValueFromMatrix(ex.targetReps, i), exerciseName: ex.name, exerciseId: ex.exerciseId, globalIndex: counter++, videoUrl: ex.videoUrl });
-        
-        if (ex.method === 'dropset' && ex.dropsetConfig?.drops) {
-            ex.dropsetConfig.drops.forEach((drop, dIdx) => {
-                rows.push({ type: 'drop', label: `Drop ${dIdx + 1}`, targetWeight: extractValueFromMatrix(drop.weight, i), targetReps: drop.reps, exerciseName: ex.name, exerciseId: ex.exerciseId, globalIndex: counter++, videoUrl: ex.videoUrl });
-            });
-        }
-    }
-    return rows;
-};
-
-export const LiveTracker: React.FC<Props> = ({ workout: activeWorkout, onFinish, user }) => {
-  const STORAGE_KEY = `kinetix_live_v20_${user?.id || 'guest'}_${activeWorkout?.id}`;
-  const [progress, setProgress] = useState<ProgressState>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return { currentExerciseIndex: 0, completedSets: 0, isPairTurn: false, subIndex: 0, performanceData: {}, workoutLogs: [], emomCurrentMin: 1, tabataCurrentRound: 1, tabataCurrentSet: 1 };
-  });
-
-  const [expandedExId, setExpandedExId] = useState<string | null>(activeWorkout?.exercises?.[0]?.exerciseId || null);
-  const [activeVideoUrl, setActiveVideoUrl] = useState<string | undefined>(activeWorkout?.exercises?.[0]?.videoUrl);
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [showFinishModal, setShowFinishModal] = useState(false);
-  const timerRef = useRef<any>(null);
-
-  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(progress)); }, [progress, STORAGE_KEY]);
-  useEffect(() => { timerRef.current = window.setInterval(() => setElapsedTime(p => p + 1), 1000); return () => clearInterval(timerRef.current); }, []);
-
-  const handleInput = (exBlockId: string, uniqueIdx: number, field: 'reps' | 'weight', value: string) => {
-    const numVal = value === '' ? 0 : parseFloat(value);
-    setProgress(prev => {
-        const currentData = prev.performanceData[exBlockId] || { weights: [], reps: [] };
-        const newReps = [...(currentData.reps || [])];
-        const newWeights = [...(currentData.weights || [])];
-        if (field === 'reps') newReps[uniqueIdx] = numVal;
-        if (field === 'weight') newWeights[uniqueIdx] = numVal;
-        return { ...prev, performanceData: { ...prev.performanceData, [exBlockId]: { ...currentData, reps: newReps, weights: newWeights } } };
-    });
+  const handleAddStaff = () => {
+    if (!newStaffEmail.includes('@') || !newStaffName.trim()) return alert("Datos inválidos.");
+    const newUser: User = {
+        id: `staff-${Date.now()}`,
+        name: newStaffName,
+        email: newStaffEmail.toLowerCase(),
+        role: newStaffRole,
+        goal: 'Rendimiento' as any,
+        level: 'Avanzado' as any,
+        daysPerWeek: 7,
+        equipment: [],
+        streak: 0,
+        createdAt: new Date().toISOString(),
+        isActive: true
+    };
+    const updated = [...staffList, newUser];
+    setStaffList(updated);
+    storageService.saveStaff(updated);
+    setNewStaffEmail('');
+    setNewStaffName('');
   };
 
-  const toggleSet = (exBlockId: string, row: TrackingRow, targetWeightStr: string) => {
-    const isDone = progress.workoutLogs.some(l => l.exerciseId === row.exerciseId && l.setIndex === row.globalIndex);
-    if (isDone) {
-        setProgress(prev => ({ ...prev, workoutLogs: prev.workoutLogs.filter(l => !(l.exerciseId === row.exerciseId && l.setIndex === row.globalIndex)) }));
-    } else {
-        const manualWeight = progress.performanceData[exBlockId]?.weights?.[row.globalIndex];
-        const detectedWeight = manualWeight && manualWeight > 0 ? manualWeight : parseWeightValue(targetWeightStr);
-        const log: WorkoutLog = {
-            exerciseId: row.exerciseId, setIndex: row.globalIndex, weight: detectedWeight, reps: progress.performanceData[exBlockId]?.reps[row.globalIndex] || 0,
-            timestamp: new Date().toISOString(), isPR: false
-        };
-        soundService.playTone(800, 0.1);
-        setProgress(prev => ({ ...prev, workoutLogs: [...prev.workoutLogs, log] }));
+  const removeStaff = (id: string) => {
+    if (window.confirm("¿Revocar acceso?")) {
+        const updated = staffList.filter(s => s.id !== id);
+        setStaffList(updated);
+        storageService.saveStaff(updated);
     }
   };
 
-  const formatTime = (seconds: number) => { const mins = Math.floor(seconds / 60); const secs = seconds % 60; return `${mins}:${secs.toString().padStart(2, '0')}`; };
+  const SECURITY_MATRIX = [
+      { area: 'Privacidad', threat: 'LocalStorage Plural', impact: 'Media', risk: 'Fuga de biometría', patch: 'AES-256 Prep' },
+      { area: 'Seguridad Roles', threat: 'DevTools Bypass', impact: 'Crítica', risk: 'Escalamiento Admin', patch: 'JWT Claims' },
+      { area: 'Escalabilidad', threat: 'Client Filtering', impact: 'Alta', risk: 'Lag con 10k users', patch: 'Supabase Querying' },
+  ];
 
   return (
-    <div className="min-h-screen bg-[#050507] text-white pb-32">
-        <div className="fixed top-0 left-0 w-full bg-[#050507]/95 backdrop-blur-xl border-b border-white/10 z-50 px-6 py-4 flex justify-between items-center">
-             <div className="flex flex-col">
-                 <h1 className="text-[9px] font-black uppercase italic text-white/40 tracking-[0.3em] truncate max-w-[180px]">{activeWorkout.publicTitle || activeWorkout.name}</h1>
-                 <span className="font-mono text-xl font-black text-white">{formatTime(elapsedTime)}</span>
-             </div>
-             <button onClick={() => setShowFinishModal(true)} className="bg-red-600 px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-500">Finalizar</button>
+    <div className="pt-24 pb-32 px-6 max-w-7xl mx-auto min-h-screen text-white bg-[#050507]">
+      <div className="flex justify-between items-end mb-10 gap-6">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 bg-red-600 rounded-3xl flex items-center justify-center text-3xl shadow-[0_0_30px_rgba(220,38,38,0.4)]">🔐</div>
+          <div>
+            <h1 className="text-5xl font-black uppercase italic tracking-tighter text-red-500">BÚNKER <span className="text-white">OS</span></h1>
+            <p className="text-[10px] font-black uppercase text-white/30 tracking-[0.5em]">Risk Control Matrix v7.0</p>
+          </div>
         </div>
+        <button onClick={() => onNavigate('home')} className="px-8 py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">Cerrar</button>
+      </div>
 
-        <div className="pt-24 px-4 max-w-2xl mx-auto space-y-4">
-            {activeWorkout.exercises.map((ex, i) => {
-                const isExpanded = expandedExId === ex.exerciseId;
-                const trackingRows = generateTrackingRows(ex);
-                const blockLogs = progress.workoutLogs.filter(l => {
-                    const relatedIds = [ex.exerciseId, ex.pair?.exerciseId, ...(ex.emomConfig?.sequence?.map(s => s.exerciseId) || []), ...(ex.tabataConfig?.sequence?.map(s => s.exerciseId) || [])].filter(Boolean);
-                    return relatedIds.includes(l.exerciseId);
-                });
-                const isComplete = blockLogs.length >= trackingRows.length;
-                const videoId = getYoutubeId(isExpanded ? activeVideoUrl : ex.videoUrl);
+      <div className="flex gap-8 mb-10 border-b border-white/5 overflow-x-auto no-scrollbar pb-4">
+        {['Staff', 'Matriz de Seguridad', 'Logs'].map((label, idx) => {
+          const id = ['staff', 'security', 'devops'][idx];
+          return (
+            <button key={id} onClick={() => setActiveTab(id as any)} className={`relative text-[10px] font-black uppercase tracking-[0.4em] transition-all ${activeTab === id ? 'text-red-500' : 'text-white/20 hover:text-white/40'}`}>
+              {label}
+              {activeTab === id && <div className="absolute -bottom-[18px] left-0 w-full h-[2px] bg-red-500" />}
+            </button>
+          );
+        })}
+      </div>
 
-                return (
-                    <div key={`${ex.exerciseId}-${i}`} className={`rounded-[30px] border transition-all duration-500 overflow-hidden ${isExpanded ? 'bg-[#121215] border-white/20' : isComplete ? 'bg-[#0A0A0C] border-green-900/30 opacity-60' : 'bg-[#0F0F11] border-white/5'}`}>
-                        <div onClick={() => {
-                            setExpandedExId(isExpanded ? null : ex.exerciseId);
-                            setActiveVideoUrl(ex.videoUrl);
-                        }} className="p-5 flex items-center justify-between cursor-pointer active:bg-white/5">
-                            <div className="flex items-center gap-4">
-                                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xs font-black ${isComplete ? 'bg-green-600' : 'bg-white/5 text-white/20'}`}>{isComplete ? '✓' : i + 1}</div>
-                                <div>
-                                    <h3 className="text-sm font-black uppercase italic">{ex.name}</h3>
-                                    <p className="text-[8px] font-black text-white/20 uppercase mt-1">{blockLogs.length}/{trackingRows.length} MÓDULOS</p>
-                                </div>
-                            </div>
-                            <span className={`text-white/20 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
+      <div className="animate-in fade-in duration-500">
+        {activeTab === 'staff' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="bg-[#0F0F11] border border-white/5 rounded-[40px] p-8 space-y-6">
+                <h3 className="text-xl font-black uppercase italic text-white">Alta de Staff</h3>
+                <div className="space-y-4">
+                    <input type="text" placeholder="Nombre" className="w-full bg-black border border-white/10 rounded-xl p-4 text-xs font-bold text-white outline-none" value={newStaffName} onChange={e => setNewStaffName(e.target.value)} />
+                    <input type="email" placeholder="Email" className="w-full bg-black border border-white/10 rounded-xl p-4 text-xs font-bold text-white outline-none" value={newStaffEmail} onChange={e => setNewStaffEmail(e.target.value)} />
+                    <button onClick={handleAddStaff} className="w-full py-4 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest">CONCEDER ACCESO</button>
+                </div>
+            </div>
+            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {staffList.map(s => (
+                    <div key={s.id} className="p-8 bg-white/5 border border-white/10 rounded-[35px] flex justify-between items-center group">
+                        <div>
+                            <p className="text-lg font-black uppercase italic">{s.name}</p>
+                            <p className="text-[9px] text-white/30 font-bold uppercase tracking-widest">{s.role} // {s.email}</p>
                         </div>
-
-                        {isExpanded && (
-                            <div className="border-t border-white/5 p-4 space-y-3 animate-in fade-in">
-                                {videoId && (
-                                    <div className="mb-4 aspect-video rounded-3xl overflow-hidden bg-black border border-white/5 relative">
-                                        <iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}`} frameBorder="0" allow="autoplay; encrypted-media" allowFullScreen></iframe>
-                                    </div>
-                                )}
-                                
-                                <div className="space-y-2">
-                                    {trackingRows.map((row) => {
-                                        const isSetDone = progress.workoutLogs.some(l => l.exerciseId === row.exerciseId && l.setIndex === row.globalIndex);
-                                        const rVal = progress.performanceData[ex.exerciseId]?.reps?.[row.globalIndex];
-                                        const wVal = progress.performanceData[ex.exerciseId]?.weights?.[row.globalIndex];
-
-                                        return (
-                                            <div key={row.globalIndex} className={`flex items-center gap-3 p-4 rounded-2xl border transition-all ${isSetDone ? 'bg-green-600/10 border-green-500/20' : 'bg-[#1A1A1D] border-white/5'}`}>
-                                                <div className="w-10 text-center flex flex-col justify-center shrink-0">
-                                                    <span className="text-[10px] font-black uppercase text-white/20">{row.label}</span>
-                                                    {row.videoUrl && (
-                                                        <button onClick={() => setActiveVideoUrl(row.videoUrl)} className="text-[12px] mt-1 text-red-500">▶</button>
-                                                    )}
-                                                </div>
-                                                <div className="flex-1 flex flex-col min-w-0">
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <p className="text-[8px] font-black text-white/30 uppercase truncate">{row.exerciseName || ex.name}</p>
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        <div className="flex-1">
-                                                            <div className="relative">
-                                                                <span className="absolute -top-3 left-0 text-[7px] font-black text-yellow-500/40 uppercase">KG</span>
-                                                                <input type="number" inputMode="decimal" className="w-full bg-transparent text-lg font-black text-yellow-500 outline-none border-b border-yellow-500/10" placeholder={row.targetWeight} value={wVal || ''} onChange={(e) => handleInput(ex.exerciseId, row.globalIndex, 'weight', e.target.value)}/>
-                                                            </div>
-                                                        </div>
-                                                        <div className="w-16">
-                                                            <div className="relative">
-                                                                <span className="absolute -top-3 left-0 text-[7px] font-black text-white/20 uppercase">REPS</span>
-                                                                <input type="number" inputMode="decimal" className="w-full bg-transparent text-lg font-black text-white outline-none border-b border-white/10 text-center" placeholder={row.targetReps} value={rVal || ''} onChange={(e) => handleInput(ex.exerciseId, row.globalIndex, 'reps', e.target.value)}/>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <button onClick={() => toggleSet(ex.exerciseId, row, row.targetWeight)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${isSetDone ? 'bg-green-600 text-white' : 'bg-white/10 text-white/20'}`}>
-                                                    {isSetDone ? '✓' : 'OK'}
-                                                </button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
+                        <button onClick={() => removeStaff(s.id)} className="w-10 h-10 rounded-full bg-white/5 hover:bg-red-600 text-white/10">✕</button>
                     </div>
-                );
-            })}
-        </div>
-        {showFinishModal && (
-            <div className="fixed inset-0 z-[2000] bg-black/90 flex flex-col items-center justify-center p-6 text-center animate-in fade-in">
-                <h2 className="text-4xl font-black italic uppercase mb-6">¿FINALIZAR OPERACIÓN?</h2>
-                <div className="flex gap-4 w-full max-w-sm">
-                    <button onClick={() => setShowFinishModal(false)} className="flex-1 py-5 bg-white/5 rounded-2xl font-black uppercase tracking-widest">CANCELAR</button>
-                    <button onClick={() => { localStorage.removeItem(STORAGE_KEY); onFinish(progress); }} className="flex-1 py-5 bg-red-600 rounded-2xl font-black uppercase tracking-widest shadow-2xl">GUARDAR</button>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'security' && (
+            <div className="bg-[#0F0F11] border border-white/5 rounded-[40px] overflow-hidden shadow-2xl">
+                <div className="p-8 border-b border-white/5 bg-white/2 overflow-x-auto">
+                    <table className="w-full text-left min-w-[600px]">
+                        <thead>
+                            <tr className="text-[9px] font-black text-white/30 uppercase">
+                                <th className="pb-4 px-4">Área</th>
+                                <th className="pb-4 px-4">Amenaza</th>
+                                <th className="pb-4 px-4">Impacto</th>
+                                <th className="pb-4 px-4">Patch</th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-[11px] font-bold uppercase">
+                            {SECURITY_MATRIX.map((r, i) => (
+                                <tr key={i} className="border-t border-white/5">
+                                    <td className="py-5 px-4 text-white">{r.area}</td>
+                                    <td className="py-5 px-4 text-white/60">{r.threat}</td>
+                                    <td className={`py-5 px-4 ${r.impact === 'Crítica' ? 'text-red-500' : 'text-orange-500'}`}>{r.impact}</td>
+                                    <td className="py-5 px-4 text-green-500">{r.patch}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         )}
+      </div>
     </div>
   );
 };
