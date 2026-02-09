@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { WorkoutExercise, TrainingMethod, DropSetNode, IntervalItem } from '../../types/kinetix';
+import { WorkoutExercise, TrainingMethod } from '../../types/kinetix';
 import { storageService } from '../../services/storageService';
 
 interface Props {
@@ -32,13 +32,11 @@ export const ExerciseBlockEditor: React.FC<Props> = ({ exercise, onUpdate }) => 
 
   const handleUpdate = (updates: Partial<WorkoutExercise>) => {
     let finalUpdates = { ...updates };
-    
     if (updates.targetSets !== undefined && updates.targetSets !== exercise.targetSets) {
       const newLen = updates.targetSets;
       finalUpdates.targetLoad = normalizeMatrixString(exercise.targetLoad, newLen, '0');
       finalUpdates.targetReps = normalizeMatrixString(exercise.targetReps, newLen, '10');
     }
-    
     onUpdate({ ...exercise, ...finalUpdates });
   };
 
@@ -83,18 +81,13 @@ export const ExerciseBlockEditor: React.FC<Props> = ({ exercise, onUpdate }) => 
       </div>
 
       <div className="p-8 space-y-10 relative">
-        <div className={`absolute top-0 right-0 w-64 h-64 blur-[100px] opacity-[0.03] pointer-events-none rounded-full ${currentMethod.color}`} />
-
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em] flex items-center gap-3">
-                  <span className={`w-1.5 h-1.5 rounded-full ${currentMethod.color}`} />
-                  Módulo Principal
-              </label>
-              <span className="text-[8px] font-black text-white/10 uppercase tracking-widest">{exercise.method} ACTIVE</span>
-            </div>
+            <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em] flex items-center gap-3">
+                <span className={`w-1.5 h-1.5 rounded-full ${currentMethod.color}`} />
+                Selección de Ejercicio
+            </label>
             <select 
-              className="w-full bg-[#151518] border border-white/10 rounded-[24px] p-5 text-white text-lg font-black italic uppercase outline-none focus:border-white/40 transition-all appearance-none cursor-pointer" 
+              className="w-full bg-[#151518] border border-white/10 rounded-[24px] p-5 text-white text-lg font-black italic uppercase outline-none focus:border-white/40 transition-all" 
               value={exercise.exerciseId} 
               onChange={(e) => {
                 const sel = allExercises.find(x => x.id === e.target.value);
@@ -103,32 +96,39 @@ export const ExerciseBlockEditor: React.FC<Props> = ({ exercise, onUpdate }) => 
             >
                 {Object.keys(groupedExercises).map(cat => (
                     <optgroup key={cat} label={cat.toUpperCase()} className="bg-[#0F0F11] text-white/40 font-black">
-                        {groupedExercises[cat].map(ex => <option key={ex.id} value={ex.id} className="text-white bg-[#151518]">{ex.name}</option>)}
+                        {groupedExercises[cat].map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
                     </optgroup>
                 ))}
             </select>
         </div>
 
         {exercise.method === 'ahap' && (
-            <div className="bg-yellow-900/[0.03] border border-yellow-500/10 p-8 rounded-[40px] space-y-8 animate-in fade-in">
+            <div className="bg-yellow-900/5 border border-yellow-500/20 p-8 rounded-[40px] space-y-8 animate-in fade-in">
                 <div className="flex justify-between items-center">
                     <p className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.4em] italic">Telemetry Matrix AHAP</p>
                     <div className="flex gap-4">
-                        <span className="text-[8px] font-black text-yellow-500/40 uppercase">Yellow: KG</span>
-                        <span className="text-[8px] font-black text-white/40 uppercase">White: REPS</span>
+                        <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-yellow-500 rounded-full" />
+                            <span className="text-[8px] font-black text-yellow-500/60 uppercase">Carga (KG)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-white rounded-full" />
+                            <span className="text-[8px] font-black text-white/30 uppercase">Reps (Vol)</span>
+                        </div>
                     </div>
                 </div>
+                
                 <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
                     {Array.from({ length: exercise.targetSets || 3 }).map((_, sIdx) => (
-                        <div key={sIdx} className="shrink-0 w-32">
-                            <div className="bg-black/40 p-4 rounded-3xl border border-white/5 flex flex-col gap-3">
-                                <span className="text-[9px] font-black text-white/20 uppercase text-center">SET {sIdx + 1}</span>
+                        <div key={sIdx} className="shrink-0 w-36">
+                            <div className="bg-black/60 p-5 rounded-[32px] border border-white/10 flex flex-col gap-4 shadow-xl">
+                                <span className="text-[10px] font-black text-white/20 uppercase tracking-widest italic">SET {sIdx + 1}</span>
                                 
                                 <div className="space-y-1">
-                                    <label className="text-[7px] font-black text-yellow-500/40 uppercase block ml-2">Carga (KG)</label>
+                                    <label className="text-[7px] font-black text-yellow-500/40 uppercase ml-2">KG</label>
                                     <input 
                                         type="text" 
-                                        className="w-full bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-center text-xl font-black text-yellow-500 outline-none focus:border-yellow-500" 
+                                        className="w-full bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 text-center text-2xl font-black text-yellow-500 outline-none focus:border-yellow-500" 
                                         value={(exercise.targetLoad || '').split(',')[sIdx]?.trim() || ''} 
                                         onChange={e => updateMatrixLoad(sIdx, e.target.value)}
                                         placeholder="0"
@@ -136,10 +136,10 @@ export const ExerciseBlockEditor: React.FC<Props> = ({ exercise, onUpdate }) => 
                                 </div>
 
                                 <div className="space-y-1">
-                                    <label className="text-[7px] font-black text-white/20 uppercase block ml-2">Volumen (REPS)</label>
+                                    <label className="text-[7px] font-black text-white/20 uppercase ml-2">REPS</label>
                                     <input 
                                         type="text" 
-                                        className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-center text-sm font-black text-white outline-none focus:border-white/40" 
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-center text-lg font-black text-white outline-none focus:border-white/40" 
                                         value={(exercise.targetReps || '').split(',')[sIdx]?.trim() || ''} 
                                         onChange={e => updateMatrixReps(sIdx, e.target.value)}
                                         placeholder="10"
@@ -155,75 +155,29 @@ export const ExerciseBlockEditor: React.FC<Props> = ({ exercise, onUpdate }) => 
         {(exercise.method === 'tabata' || exercise.method === 'emom') && (
             <div className="space-y-10 animate-in fade-in">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white/5 p-6 rounded-[32px] border border-white/5">
-                        <label className="text-[9px] font-black text-white/30 uppercase block mb-4">{exercise.method === 'emom' ? 'Duración Total' : 'Rondas Totales'}</label>
+                    <div className="bg-white/5 p-8 rounded-[40px] border border-white/5">
+                        <label className="text-[9px] font-black text-white/30 uppercase block mb-4 tracking-widest">{exercise.method === 'emom' ? 'Duración Total (Min)' : 'Rondas Totales'}</label>
                         <div className="flex items-end gap-3">
-                          <input type="number" className="bg-transparent text-5xl font-black text-white outline-none w-24" value={exercise.method === 'emom' ? exercise.emomConfig?.durationMin : exercise.tabataConfig?.rounds} onChange={e => {
+                          <input type="number" className="bg-transparent text-6xl font-black text-white outline-none w-32 tracking-tighter" value={exercise.method === 'emom' ? exercise.emomConfig?.durationMin : exercise.tabataConfig?.rounds} onChange={e => {
                               const val = parseInt(e.target.value);
                               if(exercise.method === 'emom') handleUpdate({ targetSets: val, emomConfig: { ...(exercise.emomConfig || { sequence: [] }), durationMin: val } });
                               else handleUpdate({ targetSets: val, tabataConfig: { ...(exercise.tabataConfig || { rounds: val, workTimeSec: 20, restTimeSec: 10, sequence: [] }), rounds: val } });
                           }}/>
-                          <span className="text-sm font-black text-white/20 mb-2 uppercase">{exercise.method === 'emom' ? 'MIN' : 'RND'}</span>
+                          <span className="text-sm font-black text-white/20 mb-3 uppercase tracking-widest">{exercise.method === 'emom' ? 'MIN' : 'RND'}</span>
                         </div>
-                    </div>
-                </div>
-                <div className="space-y-6">
-                    <div className="flex justify-between items-center">
-                        <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]">Sequence Architecture</p>
-                        <button onClick={() => {
-                            const key = exercise.method === 'emom' ? 'emomConfig' : 'tabataConfig';
-                            const config = (exercise as any)[key] || { sequence: [] };
-                            const newItem = { exerciseId: allExercises[0].id, name: allExercises[0].name, targetReps: '10', targetLoad: '0', videoUrl: allExercises[0].videoUrl };
-                            handleUpdate({ [key]: { ...config, sequence: [...(config.sequence || []), newItem] } });
-                        }} className="text-[9px] font-black bg-white/10 px-5 py-2.5 rounded-xl">+ ADD ITEM</button>
-                    </div>
-                    <div className="space-y-3">
-                        {(exercise.method === 'emom' ? exercise.emomConfig?.sequence : exercise.tabataConfig?.sequence)?.map((item, idx) => (
-                            <div key={idx} className="flex gap-4 items-center bg-[#151518] p-4 rounded-3xl border border-white/5">
-                                <span className="text-[11px] font-black text-white/10 w-6 italic">#{idx + 1}</span>
-                                <select className="flex-1 bg-transparent text-xs font-black uppercase text-white outline-none" value={item.exerciseId} onChange={e => {
-                                    const sel = allExercises.find(x => x.id === e.target.value);
-                                    if(sel) {
-                                        const key = exercise.method === 'emom' ? 'emomConfig' : 'tabataConfig';
-                                        const config = (exercise as any)[key];
-                                        const seq = [...config.sequence];
-                                        seq[idx] = { ...seq[idx], exerciseId: sel.id, name: sel.name, videoUrl: sel.videoUrl };
-                                        handleUpdate({ [key]: { ...config, sequence: seq } });
-                                    }
-                                }}>
-                                    {allExercises.map(ex => <option key={ex.id} value={ex.id} className="bg-black text-white">{ex.name}</option>)}
-                                </select>
-                                <div className="flex gap-2">
-                                  <input type="text" className="w-16 bg-black/40 border border-white/5 rounded-xl p-2.5 text-center text-xs font-black text-white" value={item.targetLoad} onChange={e => {
-                                      const key = exercise.method === 'emom' ? 'emomConfig' : 'tabataConfig';
-                                      const config = (exercise as any)[key];
-                                      const seq = [...config.sequence];
-                                      seq[idx] = { ...seq[idx], targetLoad: e.target.value };
-                                      handleUpdate({ [key]: { ...config, sequence: seq } });
-                                  }} placeholder="KG"/>
-                                  <input type="text" className="w-16 bg-black/40 border border-white/5 rounded-xl p-2.5 text-center text-xs font-black text-white" value={item.targetReps} onChange={e => {
-                                      const key = exercise.method === 'emom' ? 'emomConfig' : 'tabataConfig';
-                                      const config = (exercise as any)[key];
-                                      const seq = [...config.sequence];
-                                      seq[idx] = { ...seq[idx], targetReps: e.target.value };
-                                      handleUpdate({ [key]: { ...config, sequence: seq } });
-                                  }} placeholder="REPS"/>
-                                </div>
-                            </div>
-                        ))}
                     </div>
                 </div>
             </div>
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-10 border-t border-white/5">
-            <div className="bg-[#121215] p-5 rounded-3xl border border-white/5 flex flex-col justify-between">
-                <label className="text-[8px] font-black text-white/20 uppercase block mb-2">Sets Totales</label>
-                <input type="number" className="w-full bg-transparent text-3xl font-black text-white outline-none" value={exercise.targetSets} onChange={e => handleUpdate({ targetSets: parseInt(e.target.value) })}/>
+            <div className="bg-[#121215] p-6 rounded-3xl border border-white/5 flex flex-col justify-between shadow-inner">
+                <label className="text-[8px] font-black text-white/20 uppercase block mb-2 tracking-widest">Sets Totales</label>
+                <input type="number" className="w-full bg-transparent text-4xl font-black text-white outline-none" value={exercise.targetSets} onChange={e => handleUpdate({ targetSets: parseInt(e.target.value) })}/>
             </div>
-            <div className="bg-[#121215] p-5 rounded-3xl border border-white/5 flex flex-col justify-between">
-                <label className="text-[8px] font-black text-white/20 uppercase block mb-2">Rest (sec)</label>
-                <input type="number" className="w-full bg-transparent text-3xl font-black text-red-600 outline-none" value={exercise.targetRest} onChange={e => handleUpdate({ targetRest: parseInt(e.target.value) })}/>
+            <div className="bg-[#121215] p-6 rounded-3xl border border-white/5 flex flex-col justify-between shadow-inner">
+                <label className="text-[8px] font-black text-white/20 uppercase block mb-2 tracking-widest">Rest (SEC)</label>
+                <input type="number" className="w-full bg-transparent text-4xl font-black text-red-600 outline-none" value={exercise.targetRest} onChange={e => handleUpdate({ targetRest: parseInt(e.target.value) })}/>
             </div>
         </div>
       </div>
