@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { WorkoutExercise, TrainingMethod, DropSetNode, IntervalItem } from '../../types/kinetix';
+import { WorkoutExercise, TrainingMethod, IntervalItem } from '../../types/kinetix';
 import { storageService } from '../../services/storageService';
 
 interface Props {
@@ -44,7 +44,8 @@ export const ExerciseBlockEditor: React.FC<Props> = ({ exercise, onUpdate }) => 
           ...exercise.dropsetConfig,
           drops: exercise.dropsetConfig.drops.map(d => ({
             ...d,
-            weight: normalizeMatrixString(d.weight, newLen, '0')
+            weight: normalizeMatrixString(d.weight, newLen, '0'),
+            reps: normalizeMatrixString(d.reps, newLen, '10')
           }))
         };
       }
@@ -71,30 +72,20 @@ export const ExerciseBlockEditor: React.FC<Props> = ({ exercise, onUpdate }) => 
     const config = exercise.dropsetConfig || { drops: [] };
     const currentDrops = [...config.drops];
     if (!currentDrops[dropIdx]) return;
-
     const setWeights = (currentDrops[dropIdx].weight || '').split(',').map(s => s.trim());
     while (setWeights.length < exercise.targetSets) setWeights.push(setWeights[setWeights.length - 1] || '0');
     setWeights[setIdx] = val;
-    
     currentDrops[dropIdx] = { ...currentDrops[dropIdx], weight: setWeights.join(', ') };
     handleUpdate({ dropsetConfig: { ...config, drops: currentDrops } });
   };
 
-  const updateIntervalItem = (type: 'emom' | 'tabata', idx: number, updates: Partial<IntervalItem>) => {
-    const configKey = type === 'emom' ? 'emomConfig' : 'tabataConfig';
-    const config = (exercise as any)[configKey] || { sequence: [] };
+  const updateIntervalItem = (idx: number, updates: Partial<IntervalItem>) => {
+    const key = exercise.method === 'emom' ? 'emomConfig' : 'tabataConfig';
+    const config = (exercise as any)[key];
+    if (!config) return;
     const seq = [...(config.sequence || [])];
-    if (seq[idx]) {
-      seq[idx] = { ...seq[idx], ...updates };
-      handleUpdate({ [configKey]: { ...config, sequence: seq } });
-    }
-  };
-
-  const addIntervalItem = (type: 'emom' | 'tabata') => {
-    const configKey = type === 'emom' ? 'emomConfig' : 'tabataConfig';
-    const config = (exercise as any)[configKey] || (type === 'emom' ? { durationMin: 10, sequence: [] } : { rounds: 8, workTimeSec: 20, restTimeSec: 10, sequence: [] });
-    const newItem: IntervalItem = { exerciseId: allExercises[0].id, name: allExercises[0].name, targetReps: '10', targetLoad: '0' };
-    handleUpdate({ [configKey]: { ...config, sequence: [...(config.sequence || []), newItem] } });
+    seq[idx] = { ...seq[idx], ...updates };
+    handleUpdate({ [key]: { ...config, sequence: seq } });
   };
 
   const METHODS: { id: TrainingMethod; label: string; color: string; icon: string }[] = [
@@ -110,7 +101,6 @@ export const ExerciseBlockEditor: React.FC<Props> = ({ exercise, onUpdate }) => 
 
   return (
     <div className="bg-[#0A0A0C] rounded-[40px] border border-white/5 mb-8 overflow-hidden shadow-2xl transition-all hover:border-white/10 group/block">
-      {/* METHOD SELECTOR */}
       <div className="flex bg-[#121215] p-2 overflow-x-auto border-b border-white/5 no-scrollbar gap-1">
         {METHODS.map(m => (
           <button 
@@ -127,162 +117,115 @@ export const ExerciseBlockEditor: React.FC<Props> = ({ exercise, onUpdate }) => 
       <div className="p-8 space-y-10 relative">
         <div className={`absolute top-0 right-0 w-64 h-64 blur-[100px] opacity-[0.03] pointer-events-none rounded-full ${currentMethod.color}`} />
 
-        {/* SELECTOR EJERCICIO */}
-        {exercise.method !== 'biserie' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em] flex items-center gap-3">
-                      <span className={`w-1.5 h-1.5 rounded-full ${currentMethod.color}`} />
-                      Módulo Principal
-                  </label>
-                  <span className="text-[8px] font-black text-white/10 uppercase tracking-widest">{exercise.method} ACTIVE</span>
-                </div>
-                <div className="relative group">
-                  <select 
-                    className="w-full bg-[#151518] border border-white/10 rounded-[24px] p-5 text-white text-lg font-black italic uppercase outline-none focus:border-white/40 transition-all appearance-none cursor-pointer" 
-                    value={exercise.exerciseId} 
-                    onChange={(e) => {
-                      const sel = allExercises.find(x => x.id === e.target.value);
-                      if (sel) handleUpdate({ exerciseId: sel.id, name: sel.name, videoUrl: sel.videoUrl });
-                    }}
-                  >
-                      {Object.keys(groupedExercises).map(cat => (
-                          <optgroup key={cat} label={cat.toUpperCase()} className="bg-[#0F0F11] text-white/40 font-black">
-                              {groupedExercises[cat].map(ex => <option key={ex.id} value={ex.id} className="text-white bg-[#151518]">{ex.name}</option>)}
-                          </optgroup>
-                      ))}
-                  </select>
-                  <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-white/20">▼</div>
-                </div>
+                <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]">Módulo Principal</label>
+                <select className="w-full bg-[#151518] border border-white/10 rounded-[24px] p-5 text-white text-lg font-black italic uppercase outline-none" value={exercise.exerciseId} onChange={e => {
+                    const sel = allExercises.find(x => x.id === e.target.value);
+                    if (sel) handleUpdate({ exerciseId: sel.id, name: sel.name, videoUrl: sel.videoUrl });
+                }}>
+                  {Object.keys(groupedExercises).map(cat => (
+                    <optgroup key={cat} label={cat.toUpperCase()}>
+                      {groupedExercises[cat].map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
             </div>
-        )}
 
-        {/* CONTENIDO POR MODO */}
-        {exercise.method === 'biserie' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in">
-            <div className="bg-white/[0.02] border border-white/10 p-8 rounded-[35px] space-y-6">
-              <div className="flex justify-between items-center">
-                <span className="w-8 h-8 bg-white rounded-xl flex items-center justify-center text-[10px] text-black font-black shadow-lg">A</span>
-                <p className="text-[10px] font-black text-white/20 uppercase tracking-widest">Primario</p>
-              </div>
-              <select className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white font-black italic uppercase text-sm" value={exercise.exerciseId} onChange={(e) => {
-                  const sel = allExercises.find(x => x.id === e.target.value);
-                  if (sel) handleUpdate({ exerciseId: sel.id, name: sel.name, videoUrl: sel.videoUrl });
-              }}>
-                {allExercises.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
-              </select>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-black/60 p-3 rounded-xl">
-                  <span className="text-[7px] font-black text-white/20 uppercase block mb-1">Carga A</span>
-                  <input type="text" className="w-full bg-transparent text-xl font-black text-white outline-none" value={exercise.targetLoad || ''} onChange={e => handleUpdate({ targetLoad: e.target.value })} placeholder="0"/>
+            {exercise.method === 'biserie' && (
+                <div className="space-y-4 animate-in slide-in-from-right-4">
+                    <label className="text-[10px] font-black text-blue-500 uppercase tracking-[0.3em]">Pareja (Par B)</label>
+                    <select className="w-full bg-[#151518] border border-blue-500/20 rounded-[24px] p-5 text-white text-lg font-black italic uppercase outline-none" value={exercise.pair?.exerciseId || ''} onChange={e => {
+                        const sel = allExercises.find(x => x.id === e.target.value);
+                        if (sel) handleUpdate({ pair: { exerciseId: sel.id, name: sel.name, targetReps: '10', targetLoad: '0', videoUrl: sel.videoUrl } });
+                    }}>
+                      <option value="">-- SELECCIONAR --</option>
+                      {allExercises.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
+                    </select>
                 </div>
-                <div className="bg-black/60 p-3 rounded-xl">
-                  <span className="text-[7px] font-black text-white/20 uppercase block mb-1">Reps A</span>
-                  <input type="text" className="w-full bg-transparent text-xl font-black text-white outline-none" value={exercise.targetReps} onChange={e => handleUpdate({ targetReps: e.target.value })} placeholder="10"/>
+            )}
+        </div>
+
+        {/* MATRIX EDITOR (AHAP / STANDARD / BI-SERIE) */}
+        {(exercise.method === 'ahap' || exercise.method === 'standard' || exercise.method === 'biserie') && (
+            <div className="bg-white/[0.02] border border-white/5 p-8 rounded-[40px] space-y-6">
+                <div className="flex justify-between items-center">
+                    <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.4em]">Protocolo de Carga por Set</p>
+                    <div className="flex items-center gap-3 bg-black/40 px-4 py-2 rounded-xl border border-white/5">
+                        <span className="text-[9px] font-black text-white/40 uppercase">Sets:</span>
+                        <input type="number" className="bg-transparent text-white font-black w-8 outline-none text-center" value={exercise.targetSets} onChange={e => handleUpdate({ targetSets: parseInt(e.target.value) || 1 })} />
+                    </div>
                 </div>
-              </div>
-            </div>
-            <div className="bg-blue-600/[0.02] border border-blue-500/20 p-8 rounded-[35px] space-y-6">
-              <div className="flex justify-between items-center">
-                <span className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-[10px] text-white font-black shadow-lg">B</span>
-                <p className="text-[10px] font-black text-blue-400/40 uppercase tracking-widest">Secundario</p>
-              </div>
-              <select className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white font-black italic uppercase text-sm" value={exercise.pair?.exerciseId || ''} onChange={(e) => {
-                  const sel = allExercises.find(x => x.id === e.target.value);
-                  if (sel) handleUpdate({ pair: { ...(exercise.pair || { targetReps: '10', targetLoad: '0' }), exerciseId: sel.id, name: sel.name } });
-              }}>
-                <option value="">Seleccionar B...</option>
-                {allExercises.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
-              </select>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-black/60 p-3 rounded-xl border border-blue-500/10">
-                  <span className="text-[7px] font-black text-blue-400/40 uppercase block mb-1">Carga B</span>
-                  <input type="text" className="w-full bg-transparent text-xl font-black text-white outline-none" value={exercise.pair?.targetLoad || ''} onChange={e => handleUpdate({ pair: { ...(exercise.pair || { exerciseId: '', name: '', targetReps: '10' }), targetLoad: e.target.value } })} placeholder="0"/>
-                </div>
-                <div className="bg-black/60 p-3 rounded-xl border border-blue-500/10">
-                  <span className="text-[7px] font-black text-blue-400/40 uppercase block mb-1">Reps B</span>
-                  <input type="text" className="w-full bg-transparent text-xl font-black text-white outline-none" value={exercise.pair?.targetReps || ''} onChange={e => handleUpdate({ pair: { ...(exercise.pair || { exerciseId: '', name: '', targetLoad: '0' }), targetReps: e.target.value } })} placeholder="10"/>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : exercise.method === 'ahap' ? (
-            <div className="bg-yellow-900/[0.03] border border-yellow-500/10 p-8 rounded-[40px] space-y-8 animate-in fade-in">
-                <p className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.4em] italic">Telemetry Matrix AHAP</p>
                 <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
-                    {Array.from({ length: exercise.targetSets || 3 }).map((_, sIdx) => (
-                        <div key={sIdx} className="shrink-0 w-28">
-                            <div className="bg-black/40 p-4 rounded-3xl border border-white/5 flex flex-col items-center gap-4">
-                                <span className="text-[9px] font-black text-white/20 uppercase">Set {sIdx + 1}</span>
-                                <div className="space-y-3 w-full text-center">
-                                    <input 
-                                        type="text" 
-                                        className="w-full bg-transparent text-center text-2xl font-black text-yellow-500 outline-none" 
-                                        value={(exercise.targetLoad || '').split(',')[sIdx]?.trim() || ''} 
-                                        onChange={e => updateMatrixLoad(sIdx, e.target.value)}
-                                        placeholder="0"
-                                    />
-                                    <div className="bg-white/5 rounded-xl p-2">
-                                      <input 
-                                          type="text" 
-                                          className="w-full bg-transparent text-center text-[11px] font-black text-white outline-none" 
-                                          value={(exercise.targetReps || '').split(',')[sIdx]?.trim() || ''} 
-                                          onChange={e => updateMatrixReps(sIdx, e.target.value)}
-                                          placeholder="10"
-                                      />
-                                    </div>
-                                </div>
+                    {Array.from({ length: exercise.targetSets || 1 }).map((_, i) => (
+                        <div key={i} className="shrink-0 w-32 space-y-3">
+                            <p className="text-[9px] font-black text-white/10 uppercase text-center">SET {i+1}</p>
+                            <div className="bg-black/40 p-3 rounded-2xl border border-white/5 space-y-2">
+                                <input type="text" className="w-full bg-transparent text-center text-xl font-black text-yellow-500 outline-none" value={(exercise.targetLoad || '').split(',')[i]?.trim() || '0'} onChange={e => updateMatrixLoad(i, e.target.value)} placeholder="KG" />
+                                <input type="text" className="w-full bg-white/5 border border-white/5 rounded-xl p-2 text-center text-xs font-black text-white outline-none" value={(exercise.targetReps || '').split(',')[i]?.trim() || '10'} onChange={e => updateMatrixReps(i, e.target.value)} placeholder="REPS" />
                             </div>
                         </div>
                     ))}
                 </div>
             </div>
-        ) : exercise.method === 'dropset' ? (
-            <div className="bg-purple-900/[0.03] border border-purple-500/10 p-8 rounded-[40px] space-y-8 animate-in fade-in">
+        )}
+
+        {/* DROIPSET EDITOR */}
+        {exercise.method === 'dropset' && (
+            <div className="bg-purple-900/10 border border-purple-500/20 p-8 rounded-[40px] space-y-6">
                 <div className="flex justify-between items-center">
-                    <p className="text-[10px] font-black text-purple-400 uppercase tracking-[0.4em] italic">Drop Matrix Engineering</p>
-                    <button 
-                        onClick={() => handleUpdate({ dropsetConfig: { drops: [...(exercise.dropsetConfig?.drops || []), { weight: '0', reps: 'Fallo' }] } })}
-                        className="text-[9px] font-black text-purple-400 bg-purple-500/10 px-4 py-2 rounded-xl"
-                    >
-                        + ADD DROP
-                    </button>
-                </div>
-                <div className="overflow-x-auto no-scrollbar rounded-2xl border border-white/5">
-                    <div className="min-w-[600px] bg-black/40">
-                        <div className="grid grid-cols-6 gap-2 p-4 border-b border-white/5 bg-white/[0.02]">
-                            <div className="text-[8px] font-black text-white/20 uppercase tracking-widest text-center">Set</div>
-                            <div className="text-[8px] font-black text-purple-400 uppercase tracking-widest text-center">Base Load</div>
-                            {(exercise.dropsetConfig?.drops || []).map((_, i) => (
-                                <div key={i} className="text-[8px] font-black text-purple-500/60 uppercase tracking-widest text-center">Drop {i+1}</div>
-                            ))}
-                        </div>
-                        <div className="divide-y divide-white/5">
-                          {Array.from({ length: exercise.targetSets || 3 }).map((_, sIdx) => (
-                              <div key={sIdx} className="grid grid-cols-6 gap-2 p-3 hover:bg-white/[0.02]">
-                                  <div className="flex items-center justify-center text-[10px] font-black text-white/10">{sIdx + 1}</div>
-                                  <div className="px-2">
-                                    <input type="text" className="w-full bg-purple-500/10 border border-purple-500/20 rounded-xl p-2 text-center text-sm font-black text-white" value={(exercise.targetLoad || '').split(',')[sIdx]?.trim() || ''} onChange={e => updateMatrixLoad(sIdx, e.target.value)} placeholder="0"/>
-                                  </div>
-                                  {(exercise.dropsetConfig?.drops || []).map((drop, dIdx) => (
-                                      <div key={dIdx} className="px-1">
-                                        <input type="text" className="w-full bg-black/40 border border-white/5 rounded-xl p-2 text-center text-xs font-bold text-purple-300" value={(drop.weight || '').split(',')[sIdx]?.trim() || ''} onChange={e => updateDropWeight(sIdx, dIdx, e.target.value)} placeholder="0"/>
-                                      </div>
-                                  ))}
-                              </div>
-                          ))}
+                    <div>
+                        <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest">Drop Matrix Engineering</p>
+                        <div className="flex items-center gap-2 mt-2">
+                            <span className="text-[8px] font-bold text-white/30 uppercase">Sets Totales:</span>
+                            <input type="number" className="bg-transparent text-white font-black w-6 text-[10px] outline-none" value={exercise.targetSets} onChange={e => handleUpdate({ targetSets: parseInt(e.target.value) || 1 })} />
                         </div>
                     </div>
+                    <button onClick={() => {
+                        const newDrops = [...(exercise.dropsetConfig?.drops || []), { weight: '0', reps: 'Fallo' }];
+                        handleUpdate({ dropsetConfig: { ...exercise.dropsetConfig!, drops: newDrops } });
+                    }} className="text-[9px] font-black bg-purple-600 px-4 py-2 rounded-xl text-white">+ DROP</button>
+                </div>
+                <div className="overflow-x-auto no-scrollbar rounded-2xl border border-white/5 bg-black/20">
+                    <table className="w-full text-center border-collapse">
+                        <thead>
+                            <tr className="border-b border-white/5 bg-white/5">
+                                <th className="p-3 text-[8px] font-black text-white/30 uppercase">Set</th>
+                                <th className="p-3 text-[8px] font-black text-purple-400 uppercase">Base (KG)</th>
+                                {exercise.dropsetConfig?.drops.map((_, idx) => (
+                                    <th key={idx} className="p-3 text-[8px] font-black text-purple-300/50 uppercase">Drop {idx+1}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {Array.from({ length: exercise.targetSets || 1 }).map((_, sIdx) => (
+                                <tr key={sIdx} className="border-b border-white/5">
+                                    <td className="p-3 text-[10px] font-black text-white/10">{sIdx+1}</td>
+                                    <td className="p-2">
+                                        <input type="text" className="w-14 bg-purple-500/10 border border-purple-500/20 rounded-lg p-2 text-center text-xs font-black text-white" value={(exercise.targetLoad || '').split(',')[sIdx]?.trim() || '0'} onChange={e => updateMatrixLoad(sIdx, e.target.value)} />
+                                    </td>
+                                    {exercise.dropsetConfig?.drops.map((d, dIdx) => (
+                                        <td key={dIdx} className="p-2">
+                                            <input type="text" className="w-14 bg-black/40 border border-white/5 rounded-lg p-2 text-center text-xs font-black text-purple-300/60" value={(d.weight || '').split(',')[sIdx]?.trim() || '0'} onChange={e => updateDropWeight(sIdx, dIdx, e.target.value)} />
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        ) : (exercise.method === 'tabata' || exercise.method === 'emom') ? (
+        )}
+
+        {/* INTERVAL EDITOR (EMOM / TABATA) */}
+        {(exercise.method === 'emom' || exercise.method === 'tabata') && (
             <div className="space-y-10 animate-in fade-in">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-white/5 p-6 rounded-[32px] border border-white/5">
                         <label className="text-[9px] font-black text-white/30 uppercase block mb-4">{exercise.method === 'emom' ? 'Duración Total' : 'Rondas Totales'}</label>
                         <div className="flex items-end gap-3">
                           <input type="number" className="bg-transparent text-5xl font-black text-white outline-none w-24" value={exercise.method === 'emom' ? exercise.emomConfig?.durationMin : exercise.tabataConfig?.rounds} onChange={e => {
-                              const val = parseInt(e.target.value);
+                              const val = parseInt(e.target.value) || 1;
                               if(exercise.method === 'emom') handleUpdate({ targetSets: val, emomConfig: { ...(exercise.emomConfig || { sequence: [] }), durationMin: val } });
                               else handleUpdate({ targetSets: val, tabataConfig: { ...(exercise.tabataConfig || { rounds: val, workTimeSec: 20, restTimeSec: 10, sequence: [] }), rounds: val } });
                           }}/>
@@ -293,7 +236,12 @@ export const ExerciseBlockEditor: React.FC<Props> = ({ exercise, onUpdate }) => 
                 <div className="space-y-6">
                     <div className="flex justify-between items-center">
                         <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]">Sequence Architecture</p>
-                        <button onClick={() => addIntervalItem(exercise.method as 'emom' | 'tabata')} className="text-[9px] font-black bg-white/10 px-5 py-2.5 rounded-xl">+ ADD ITEM</button>
+                        <button onClick={() => {
+                            const key = exercise.method === 'emom' ? 'emomConfig' : 'tabataConfig';
+                            const config = (exercise as any)[key] || { sequence: [] };
+                            const newItem = { exerciseId: allExercises[0].id, name: allExercises[0].name, targetReps: '10', targetLoad: '0' };
+                            handleUpdate({ [key]: { ...config, sequence: [...(config.sequence || []), newItem] } });
+                        }} className="text-[9px] font-black bg-cyan-600 px-4 py-2 rounded-xl text-white">+ ITEM</button>
                     </div>
                     <div className="space-y-3">
                         {(exercise.method === 'emom' ? exercise.emomConfig?.sequence : exercise.tabataConfig?.sequence)?.map((item, idx) => (
@@ -301,49 +249,31 @@ export const ExerciseBlockEditor: React.FC<Props> = ({ exercise, onUpdate }) => 
                                 <span className="text-[11px] font-black text-white/10 w-6 italic">#{idx + 1}</span>
                                 <select className="flex-1 bg-transparent text-xs font-black uppercase text-white outline-none" value={item.exerciseId} onChange={e => {
                                     const sel = allExercises.find(x => x.id === e.target.value);
-                                    if(sel) updateIntervalItem(exercise.method as 'emom' | 'tabata', idx, { exerciseId: sel.id, name: sel.name });
+                                    if(sel) updateIntervalItem(idx, { exerciseId: sel.id, name: sel.name });
                                 }}>
                                     {allExercises.map(ex => <option key={ex.id} value={ex.id} className="bg-black text-white">{ex.name}</option>)}
                                 </select>
                                 <div className="flex gap-2">
-                                  <input type="text" className="w-16 bg-black/40 border border-white/5 rounded-xl p-2.5 text-center text-xs font-black text-white" value={item.targetLoad} onChange={e => updateIntervalItem(exercise.method as 'emom' | 'tabata', idx, { targetLoad: e.target.value })} placeholder="KG"/>
-                                  <input type="text" className="w-16 bg-black/40 border border-white/5 rounded-xl p-2.5 text-center text-xs font-black text-white" value={item.targetReps} onChange={e => updateIntervalItem(exercise.method as 'emom' | 'tabata', idx, { targetReps: e.target.value })} placeholder="REPS"/>
+                                  <input type="text" className="w-16 bg-black/40 border border-white/5 rounded-xl p-2.5 text-center text-xs font-black text-cyan-400" value={item.targetLoad} onChange={e => updateIntervalItem(idx, { targetLoad: e.target.value })} placeholder="KG"/>
+                                  <input type="text" className="w-16 bg-black/40 border border-white/5 rounded-xl p-2.5 text-center text-xs font-black text-white" value={item.targetReps} onChange={e => updateIntervalItem(idx, { targetReps: e.target.value })} placeholder="REPS"/>
                                 </div>
                                 <button onClick={() => {
                                     const key = exercise.method === 'emom' ? 'emomConfig' : 'tabataConfig';
-                                    const seq = [...((exercise as any)[key]?.sequence || [])].filter((_: any, i: number) => i !== idx);
-                                    handleUpdate({ [key]: { ...(exercise as any)[key], sequence: seq } });
+                                    const config = (exercise as any)[key];
+                                    const seq = [...(config.sequence || [])].filter((_, i) => i !== idx);
+                                    handleUpdate({ [key]: { ...config, sequence: seq } });
                                 }} className="text-red-500/30 hover:text-red-500 px-2">✕</button>
                             </div>
                         ))}
                     </div>
                 </div>
             </div>
-        ) : null}
+        )}
 
-        {/* PARÁMETROS GLOBALES */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-10 border-t border-white/5">
-            <div className="bg-[#121215] p-5 rounded-3xl border border-white/5 flex flex-col justify-between">
-                <label className="text-[8px] font-black text-white/20 uppercase block mb-2">Sets Totales</label>
-                <input type="number" className="w-full bg-transparent text-3xl font-black text-white outline-none" value={exercise.targetSets} onChange={e => handleUpdate({ targetSets: parseInt(e.target.value) })}/>
-            </div>
-            {exercise.method !== 'biserie' && exercise.method !== 'tabata' && exercise.method !== 'emom' && (
-                <>
-                <div className="bg-[#121215] p-5 rounded-3xl border border-white/5 flex flex-col justify-between">
-                    <label className="text-[8px] font-black text-white/20 uppercase block mb-2">Repeticiones</label>
-                    <input type="text" className="w-full bg-transparent text-3xl font-black text-white outline-none" value={exercise.targetReps} onChange={e => handleUpdate({ targetReps: e.target.value })}/>
-                </div>
-                {exercise.method !== 'ahap' && exercise.method !== 'dropset' && (
-                    <div className="bg-red-600/[0.03] p-5 rounded-3xl border border-red-600/20 flex flex-col justify-between">
-                        <label className="text-[8px] font-black text-red-600 uppercase block mb-2">Carga Global</label>
-                        <input type="text" className="w-full bg-transparent text-3xl font-black text-white outline-none" value={exercise.targetLoad || ''} onChange={e => handleUpdate({ targetLoad: e.target.value })} placeholder="0"/>
-                    </div>
-                )}
-                </>
-            )}
-            <div className="bg-[#121215] p-5 rounded-3xl border border-white/5 flex flex-col justify-between">
-                <label className="text-[8px] font-black text-white/20 uppercase block mb-2">Rest (sec)</label>
-                <input type="number" className="w-full bg-transparent text-3xl font-black text-red-600 outline-none" value={exercise.targetRest} onChange={e => handleUpdate({ targetRest: parseInt(e.target.value) })}/>
+            <div className="bg-[#121215] p-5 rounded-3xl border border-white/5">
+                <label className="text-[8px] font-black text-white/20 uppercase block mb-1">Rest (sec)</label>
+                <input type="number" className="w-full bg-transparent text-3xl font-black text-red-600 outline-none" value={exercise.targetRest} onChange={e => handleUpdate({ targetRest: parseInt(e.target.value) || 0 })}/>
             </div>
         </div>
       </div>
