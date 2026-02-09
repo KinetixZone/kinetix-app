@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { Workout } from "../types/kinetix";
 import { EXERCISES_DB } from "../constants/exercises";
@@ -44,14 +43,18 @@ class AiService {
     if (!this.isConfigured) return this.getSimulationWorkout();
     try {
       return await this.callWithRetry(async () => {
+        // Correct initialization with named parameter
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const systemInstruction = `Eres Kinetix AI Architect. Genera JSON para rutinas. Usa solo estos IDs: ${availableExercises.map(e => e.id).join(', ')}.`;
+        
+        // Upgrade to gemini-3-pro-preview for complex text tasks involving reasoning and JSON structure
         const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
+          model: 'gemini-3-pro-preview',
           contents: prompt,
           config: { systemInstruction, responseMimeType: "application/json" }
         });
         
+        // .text is a property, not a method. Safe check before access.
         if (!response.text) return this.getSimulationWorkout();
         return JSON.parse(response.text.trim());
       });
@@ -66,6 +69,7 @@ class AiService {
     
     try {
       return await this.callWithRetry(async () => {
+        // Correct initialization with named parameter
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
         // PROTOCOLO DE SEGURIDAD Y CONCISIÓN v125.0
@@ -85,11 +89,13 @@ class AiService {
         
         REGLA DE ORO: No uses introducciones largas. Ve directo al grano. No actúes como coach personal.`;
 
+        // Upgrade to gemini-3-pro-preview for complex reasoning on biomechanics
         const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
+          model: 'gemini-3-pro-preview',
           contents: query,
           config: { systemInstruction }
         });
+        // .text is a property, not a method
         return response.text?.trim() || "No se pudo procesar la consulta.";
       });
     } catch (e) {
