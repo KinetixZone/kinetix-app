@@ -1,4 +1,5 @@
 
+
 export enum Goal { 
   LOSE_FAT = 'Bajar Grasa', 
   GAIN_MUSCLE = 'Subir Músculo', 
@@ -123,12 +124,16 @@ export interface WorkoutExercise {
     name: string; 
     targetReps: string; 
     targetLoad?: string; 
+    // Fix: Added videoUrl to pair to support biserie tracking
+    videoUrl?: string;
   };
   supersetChain?: { 
     exerciseId: string; 
     name: string; 
     targetReps: string;
     targetLoad?: string;
+    // Fix: Added videoUrl for consistency in superset tracking
+    videoUrl?: string;
   }[];
   ahapConfig?: { 
     notes?: string;
