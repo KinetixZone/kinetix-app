@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Workout, ProgressState, WorkoutLog, WorkoutExercise } from '../../types/kinetix';
 import { soundService } from '../../services/soundService';
 import { storageService } from '../../services/storageService';
@@ -21,7 +21,6 @@ const extractValueFromMatrix = (input: string | undefined, setIndex: number): st
     if (!input) return '--';
     const parts = input.split(',').map(s => s.trim()).filter(s => s !== '');
     if (parts.length === 0) return '--';
-    // Lógica de fill-forward: si el set actual no tiene valor definido, usa el último disponible
     return parts[setIndex] || parts[parts.length - 1] || '--';
 };
 
@@ -40,6 +39,7 @@ interface TrackingRow {
     exerciseName?: string; 
     exerciseId: string; 
     globalIndex: number; 
+    videoUrl?: string;
 }
 
 const generateTrackingRows = (ex: WorkoutExercise): TrackingRow[] => {
@@ -60,7 +60,8 @@ const generateTrackingRows = (ex: WorkoutExercise): TrackingRow[] => {
                 targetReps: seqItem?.targetReps || ex.targetReps || '10', 
                 exerciseName: seqItem?.name || ex.name, 
                 exerciseId: seqItem?.exerciseId || ex.exerciseId,
-                globalIndex: counter++ 
+                globalIndex: counter++,
+                videoUrl: seqItem?.videoUrl || ex.videoUrl
              });
         }
         return rows;
@@ -68,18 +69,18 @@ const generateTrackingRows = (ex: WorkoutExercise): TrackingRow[] => {
 
     if (ex.method === 'biserie' && ex.pair) {
         for (let i = 0; i < (ex.targetSets || 3); i++) {
-            rows.push({ type: 'pair', label: `A${i + 1}`, targetWeight: extractValueFromMatrix(ex.targetLoad, i), targetReps: extractValueFromMatrix(ex.targetReps, i), exerciseName: ex.name, exerciseId: ex.exerciseId, globalIndex: counter++ });
-            rows.push({ type: 'pair', label: `B${i + 1}`, targetWeight: extractValueFromMatrix(ex.pair.targetLoad, i), targetReps: extractValueFromMatrix(ex.pair.targetReps, i), exerciseName: ex.pair.name, exerciseId: ex.pair.exerciseId, globalIndex: counter++ });
+            rows.push({ type: 'pair', label: `A${i + 1}`, targetWeight: extractValueFromMatrix(ex.targetLoad, i), targetReps: extractValueFromMatrix(ex.targetReps, i), exerciseName: ex.name, exerciseId: ex.exerciseId, globalIndex: counter++, videoUrl: ex.videoUrl });
+            rows.push({ type: 'pair', label: `B${i + 1}`, targetWeight: extractValueFromMatrix(ex.pair.targetLoad, i), targetReps: extractValueFromMatrix(ex.pair.targetReps, i), exerciseName: ex.pair.name, exerciseId: ex.pair.exerciseId, globalIndex: counter++, videoUrl: ex.pair.videoUrl });
         }
         return rows;
     }
 
     for (let i = 0; i < (ex.targetSets || 3); i++) {
-        rows.push({ type: 'base', label: `Set ${i + 1}`, targetWeight: extractValueFromMatrix(ex.targetLoad, i), targetReps: extractValueFromMatrix(ex.targetReps, i), exerciseName: ex.name, exerciseId: ex.exerciseId, globalIndex: counter++ });
+        rows.push({ type: 'base', label: `Set ${i + 1}`, targetWeight: extractValueFromMatrix(ex.targetLoad, i), targetReps: extractValueFromMatrix(ex.targetReps, i), exerciseName: ex.name, exerciseId: ex.exerciseId, globalIndex: counter++, videoUrl: ex.videoUrl });
         
         if (ex.method === 'dropset' && ex.dropsetConfig?.drops) {
             ex.dropsetConfig.drops.forEach((drop, dIdx) => {
-                rows.push({ type: 'drop', label: `Drop ${dIdx + 1}`, targetWeight: extractValueFromMatrix(drop.weight, i), targetReps: drop.reps, exerciseName: ex.name, exerciseId: ex.exerciseId, globalIndex: counter++ });
+                rows.push({ type: 'drop', label: `Drop ${dIdx + 1}`, targetWeight: extractValueFromMatrix(drop.weight, i), targetReps: drop.reps, exerciseName: ex.name, exerciseId: ex.exerciseId, globalIndex: counter++, videoUrl: ex.videoUrl });
             });
         }
     }
@@ -87,7 +88,7 @@ const generateTrackingRows = (ex: WorkoutExercise): TrackingRow[] => {
 };
 
 export const LiveTracker: React.FC<Props> = ({ workout: activeWorkout, onFinish, user }) => {
-  const STORAGE_KEY = `kinetix_live_v17_${user?.id || 'guest'}_${activeWorkout?.id}`;
+  const STORAGE_KEY = `kinetix_live_v18_${user?.id || 'guest'}_${activeWorkout?.id}`;
   
   const [progress, setProgress] = useState<ProgressState>(() => {
     try {
@@ -98,6 +99,7 @@ export const LiveTracker: React.FC<Props> = ({ workout: activeWorkout, onFinish,
   });
 
   const [expandedExId, setExpandedExId] = useState<string | null>(activeWorkout?.exercises?.[0]?.exerciseId || null);
+  const [activeVideoUrl, setActiveVideoUrl] = useState<string | undefined>(activeWorkout?.exercises?.[0]?.videoUrl);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showFinishModal, setShowFinishModal] = useState(false);
   const timerRef = useRef<any>(null);
@@ -162,11 +164,14 @@ export const LiveTracker: React.FC<Props> = ({ workout: activeWorkout, onFinish,
                     return relatedIds.includes(l.exerciseId);
                 });
                 const isComplete = blockLogs.length >= trackingRows.length;
-                const videoId = getYoutubeId(ex.videoUrl);
+                const videoId = getYoutubeId(isExpanded ? activeVideoUrl : ex.videoUrl);
 
                 return (
                     <div key={`${ex.exerciseId}-${i}`} className={`rounded-[30px] border transition-all duration-500 overflow-hidden ${isExpanded ? 'bg-[#121215] border-red-600/50 shadow-2xl' : isComplete ? 'bg-[#0A0A0C] border-green-900/30 opacity-60' : 'bg-[#0F0F11] border-white/5'}`}>
-                        <div onClick={() => setExpandedExId(isExpanded ? null : ex.exerciseId)} className="p-5 flex items-center justify-between cursor-pointer active:bg-white/5">
+                        <div onClick={() => {
+                            setExpandedExId(isExpanded ? null : ex.exerciseId);
+                            setActiveVideoUrl(ex.videoUrl);
+                        }} className="p-5 flex items-center justify-between cursor-pointer active:bg-white/5">
                             <div className="flex items-center gap-4">
                                 <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xs font-black ${isComplete ? 'bg-green-600' : 'bg-white/5 text-white/20'}`}>{isComplete ? '✓' : i + 1}</div>
                                 <div>
@@ -180,7 +185,7 @@ export const LiveTracker: React.FC<Props> = ({ workout: activeWorkout, onFinish,
                         {isExpanded && (
                             <div className="border-t border-white/5 p-4 space-y-3">
                                 {videoId && (
-                                    <div className="mb-4 aspect-video rounded-2xl overflow-hidden bg-black">
+                                    <div className="mb-4 aspect-video rounded-2xl overflow-hidden bg-black border border-white/5">
                                         <iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}`} frameBorder="0" allow="autoplay; encrypted-media" allowFullScreen></iframe>
                                     </div>
                                 )}
@@ -197,7 +202,12 @@ export const LiveTracker: React.FC<Props> = ({ workout: activeWorkout, onFinish,
                                                     <span className="text-[10px] font-black uppercase text-white/40">{row.label}</span>
                                                 </div>
                                                 <div className="flex-1 flex flex-col min-w-0">
-                                                    <p className="text-[7px] font-black text-white/30 uppercase truncate">{row.exerciseName || ex.name}</p>
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <p className="text-[7px] font-black text-white/30 uppercase truncate">{row.exerciseName || ex.name}</p>
+                                                        {row.videoUrl && (
+                                                            <button onClick={() => setActiveVideoUrl(row.videoUrl)} className="text-[8px] font-black text-red-500 uppercase tracking-widest hover:text-white">▶ Ver Técnica</button>
+                                                        )}
+                                                    </div>
                                                     <div className="flex gap-2 items-end">
                                                         <div className="flex-1">
                                                             <input type="number" inputMode="decimal" className="w-full bg-transparent text-sm font-black text-white outline-none border-b border-white/10" placeholder={row.targetWeight} value={wVal || ''} onChange={(e) => handleInput(ex.exerciseId, row.globalIndex, 'weight', e.target.value)}/>
