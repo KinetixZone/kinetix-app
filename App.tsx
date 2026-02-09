@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Workout, User, Goal, UserLevel, ProgressState } from './types/kinetix';
+import { Workout, User, ProgressState } from './types/kinetix';
 import { LiveTracker } from './components/workout/LiveTracker';
 import { AthleteHome } from './components/player/AthleteHome';
 import { CoachHome } from './components/coach/CoachHome'; 
@@ -110,7 +110,7 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-[#050507] flex flex-col items-center justify-center text-white font-black overflow-hidden">
         <div className="relative mb-8">
             <div className="absolute inset-0 bg-red-600 blur-[60px] opacity-20 animate-pulse"></div>
-            <div className="relative text-7xl md:text-8xl italic tracking-tighter shadow-red-600/20">K</div>
+            <div className="relative text-7xl md:text-8xl italic tracking-tighter">K</div>
         </div>
         <div className="flex flex-col items-center gap-2">
             <div className="h-[2px] w-24 bg-red-600 animate-[loading_1.5s_ease-in-out_infinite]"></div>
