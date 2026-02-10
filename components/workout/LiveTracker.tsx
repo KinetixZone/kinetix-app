@@ -52,9 +52,10 @@ const generateTrackingRows = (ex: WorkoutExercise): TrackingRow[] => {
 
     if (ex.method === 'biserie' && ex.pair) {
         for (let i = 0; i < (ex.targetSets || 3); i++) {
+            // Fila para Ejercicio A
             rows.push({ 
                 type: 'pair', 
-                label: `A${i+1}`, 
+                label: `A - Set ${i+1}`, 
                 targetWeight: ex.targetLoad?.split(',')[i]?.trim() || '0', 
                 targetReps: ex.targetReps?.split(',')[i]?.trim() || '10', 
                 exerciseName: ex.name, 
@@ -62,9 +63,10 @@ const generateTrackingRows = (ex: WorkoutExercise): TrackingRow[] => {
                 globalIndex: counter++, 
                 videoUrl: ex.videoUrl 
             });
+            // Fila para Ejercicio B con su propia matriz
             rows.push({ 
                 type: 'pair', 
-                label: `B${i+1}`, 
+                label: `B - Set ${i+1}`, 
                 targetWeight: ex.pair.targetLoad?.split(',')[i]?.trim() || '0', 
                 targetReps: ex.pair.targetReps?.split(',')[i]?.trim() || '10', 
                 exerciseName: ex.pair.name, 
@@ -78,7 +80,6 @@ const generateTrackingRows = (ex: WorkoutExercise): TrackingRow[] => {
 
     if (ex.method === 'dropset' && ex.dropsetConfig) {
         for (let i = 0; i < (ex.targetSets || 3); i++) {
-            // Base Set
             rows.push({ 
                 type: 'base', 
                 label: `Set ${i+1}`, 
@@ -89,7 +90,6 @@ const generateTrackingRows = (ex: WorkoutExercise): TrackingRow[] => {
                 globalIndex: counter++, 
                 videoUrl: ex.videoUrl 
             });
-            // Drops for this set
             ex.dropsetConfig.drops.forEach((d, dIdx) => {
                 rows.push({ 
                     type: 'drop', 
@@ -191,9 +191,9 @@ export const LiveTracker: React.FC<Props> = ({ workout, onFinish, user }) => {
                                     const log = progress.workoutLogs.find(l => l.exerciseId === row.exerciseId && l.setIndex === row.globalIndex);
                                     return (
                                         <div key={rIdx} className={`flex items-center gap-3 p-4 rounded-2xl border transition-all ${log ? 'bg-green-600/10 border-green-500/30' : 'bg-black border-white/5'}`}>
-                                            <div className="w-12 text-center flex flex-col items-center">
-                                                <p className="text-[8px] font-black text-white/30 uppercase leading-none mb-1">{row.label}</p>
-                                                {row.type === 'drop' && <span className="text-[7px] text-purple-500 font-black">DROP</span>}
+                                            <div className="w-16 text-center flex flex-col items-center">
+                                                <p className="text-[7px] font-black text-white/30 uppercase leading-none mb-1">{row.label}</p>
+                                                {row.type === 'pair' && <span className="text-[6px] text-blue-500 font-black">BI-S</span>}
                                             </div>
                                             <div className="flex-1 flex gap-2">
                                                 <div className="relative flex-1">
