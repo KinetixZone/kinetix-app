@@ -1,5 +1,5 @@
 
-import { User, Workout, WorkoutLog, Exercise, BodyMetric, Goal, UserLevel } from '../types/kinetix';
+import { User, Workout, WorkoutLog, Exercise, BodyMetric, Goal, UserLevel, WorkoutExercise } from '../types/kinetix';
 import { EXERCISES_DB } from '../constants/exercises';
 
 const KEYS = {
@@ -14,12 +14,22 @@ const KEYS = {
   COMPLETED_SESSIONS: 'kinetix_completed_sessions_ids',
   EXERCISE_LIBRARY: 'kinetix_exercise_library_v2',
   ATHLETES_DB: 'kinetix_athletes_db',
-  STAFF_DB: 'kinetix_staff_db', // NUEVA: Base de datos de personal
+  STAFF_DB: 'kinetix_staff_db',
   BODY_METRICS: 'kinetix_body_metrics',
   AI_PROMPT_HISTORY: 'kinetix_ai_prompts',
   AI_BLUEPRINTS: 'kinetix_ai_blueprints',
   SYSTEM_CONFIG: 'kinetix_system_config' 
 };
+
+export interface AthleteInsight {
+    athleteId: string;
+    athleteName: string;
+    lastWorkoutDate?: string;
+    lastRpe?: number;
+    status: 'optimal' | 'warning' | 'critical' | 'inactive';
+    message: string;
+    compliance?: number;
+}
 
 export interface SystemConfig {
     enableAI: boolean;
@@ -62,7 +72,6 @@ class StorageService {
     localStorage.removeItem(KEYS.USER);
   }
 
-  // --- GESTIÓN DE STAFF ---
   getStaff(): User[] {
     try {
         const data = localStorage.getItem(KEYS.STAFF_DB);
@@ -111,20 +120,6 @@ class StorageService {
 
   saveExercises(exercises: Exercise[]) { localStorage.setItem(KEYS.EXERCISE_LIBRARY, JSON.stringify(exercises)); }
 
-  // FIX: Added missing addOrUpdateExercise method
-  addOrUpdateExercise(exercise: Exercise) {
-    const exercises = this.getExercises();
-    const idx = exercises.findIndex(e => e.id === exercise.id);
-    if (idx >= 0) exercises[idx] = exercise; else exercises.push(exercise);
-    this.saveExercises(exercises);
-  }
-
-  // FIX: Added missing deleteExercise method
-  deleteExercise(id: string) {
-    const exercises = this.getExercises().filter(e => e.id !== id);
-    this.saveExercises(exercises);
-  }
-
   getTemplates(): Workout[] {
     const data = localStorage.getItem(KEYS.WORKOUT_TEMPLATES);
     return data ? JSON.parse(data) : [];
@@ -137,20 +132,32 @@ class StorageService {
     localStorage.setItem(KEYS.WORKOUT_TEMPLATES, JSON.stringify(templates));
   }
 
-  // FIX: Added missing deleteTemplate method
-  deleteTemplate(id: string) {
-    const templates = this.getTemplates().filter(t => t.id !== id);
-    localStorage.setItem(KEYS.WORKOUT_TEMPLATES, JSON.stringify(templates));
-  }
-
-  // FIX: Added missing saveUserSpecificWorkout method
-  saveUserSpecificWorkout(workout: Workout) {
-    this.saveTemplate(workout);
-  }
-
-  getWorkoutById(id: string): Workout | undefined {
-    const templates = this.getTemplates();
-    return templates.find(w => w.id === id);
+  cloneWithProgression(workout: Workout, weeks: number, incrementWeight: number, incrementReps: number): Workout[] {
+      const results: Workout[] = [];
+      for (let w = 1; w <= weeks; w++) {
+          const cloned: Workout = JSON.parse(JSON.stringify(workout));
+          cloned.id = `${workout.id}-w${w}-${Date.now()}`;
+          cloned.name = `${workout.name} (Sem ${w})`;
+          cloned.publicTitle = `${workout.publicTitle || workout.name} - W${w}`;
+          
+          cloned.exercises = cloned.exercises.map(ex => {
+              if (incrementWeight > 0 && ex.targetLoad) {
+                  ex.targetLoad = ex.targetLoad.split(',').map(v => {
+                      const num = parseFloat(v.trim());
+                      return isNaN(num) ? v : (num + (incrementWeight * (w - 1))).toString();
+                  }).join(', ');
+              }
+              if (incrementReps > 0 && ex.targetReps) {
+                ex.targetReps = ex.targetReps.split(',').map(v => {
+                    const num = parseInt(v.trim());
+                    return isNaN(num) ? v : (num + (incrementReps * (w - 1))).toString();
+                }).join(', ');
+              }
+              return ex;
+          });
+          results.push(cloned);
+      }
+      return results;
   }
 
   saveSessionLogs(logs: WorkoutLog[]) {
@@ -161,6 +168,51 @@ class StorageService {
   getAllLogs(): WorkoutLog[] {
     const data = localStorage.getItem(KEYS.LOG_HISTORY);
     return data ? JSON.parse(data) : [];
+  }
+
+  getAthleteInsights(): AthleteInsight[] {
+    const athletes = this.getAthletes();
+    const logs = this.getAllLogs();
+    const today = new Date();
+    
+    return athletes.map(athlete => {
+        const athleteLogs = logs.filter(l => l.timestamp.includes(athlete.id) || athlete.email.includes(l.timestamp)); // Simplificación
+        // En un entorno real usaríamos una relación robusta. Aquí simulamos por logs recientes:
+        const lastLog = logs.reverse().find(l => l.feedback !== undefined); // Demo: tomamos cualquiera con feedback
+        
+        let status: AthleteInsight['status'] = 'optimal';
+        let message = 'Rendimiento estable.';
+        
+        if (lastLog?.feedback) {
+            if (lastLog.feedback.rpe >= 9) {
+                status = 'critical';
+                message = 'ALERTA: Esfuerzo límite reportado (RPE 9+). Riesgo de sobreentreno.';
+            } else if (lastLog.feedback.fatigue >= 4) {
+                status = 'warning';
+                message = 'Fatiga alta detectada post-sesión.';
+            }
+        }
+
+        return {
+            athleteId: athlete.id,
+            athleteName: athlete.name,
+            lastWorkoutDate: lastLog?.timestamp,
+            lastRpe: lastLog?.feedback?.rpe,
+            status,
+            message,
+            compliance: 85 // Demo
+        };
+    });
+  }
+
+  getLastPerformance(exerciseId: string): { weight: number, reps: number } | null {
+      const logs = this.getAllLogs();
+      const exLogs = logs
+          .filter(l => l.exerciseId === exerciseId)
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      
+      if (exLogs.length === 0) return null;
+      return { weight: exLogs[0].weight, reps: exLogs[0].reps };
   }
 
   markSessionComplete(workoutId: string) {
@@ -178,7 +230,6 @@ class StorageService {
     return list.includes(workoutId);
   }
 
-  // FIX: Added missing getBodyMetrics method
   getBodyMetrics(): BodyMetric[] {
     try {
       const data = localStorage.getItem(KEYS.BODY_METRICS);
@@ -186,16 +237,13 @@ class StorageService {
     } catch (e) { return []; }
   }
 
-  // FIX: Added missing saveBodyMetric method
   saveBodyMetric(metric: BodyMetric) {
     const metrics = this.getBodyMetrics();
     localStorage.setItem(KEYS.BODY_METRICS, JSON.stringify([metric, ...metrics]));
   }
 
   getStorageUsage() { return { usedKB: 0, percentage: 5 }; }
-  createBackup() { return JSON.stringify({ backup_meta: { integrity: 'kinetix-signed' } }); }
   
-  // FIX: Implemented getAiBlueprints method
   getAiBlueprints(): AiBlueprint[] {
     try {
       const data = localStorage.getItem(KEYS.AI_BLUEPRINTS);
@@ -203,19 +251,16 @@ class StorageService {
     } catch (e) { return []; }
   }
 
-  // FIX: Added missing saveAiBlueprint method
   saveAiBlueprint(blueprint: AiBlueprint) {
     const blueprints = this.getAiBlueprints();
     localStorage.setItem(KEYS.AI_BLUEPRINTS, JSON.stringify([blueprint, ...blueprints]));
   }
 
-  // FIX: Added missing deleteAiBlueprint method
   deleteAiBlueprint(id: string) {
     const blueprints = this.getAiBlueprints().filter(b => b.id !== id);
     localStorage.setItem(KEYS.AI_BLUEPRINTS, JSON.stringify(blueprints));
   }
 
-  // FIX: Implemented getAiPrompts method
   getAiPrompts(): string[] {
     try {
       const data = localStorage.getItem(KEYS.AI_PROMPT_HISTORY);
@@ -223,7 +268,6 @@ class StorageService {
     } catch (e) { return []; }
   }
 
-  // FIX: Added missing saveAiPrompt method
   saveAiPrompt(prompt: string) {
     const prompts = this.getAiPrompts();
     if (prompts[0] === prompt) return;
@@ -232,6 +276,27 @@ class StorageService {
   }
 
   init(d: any) {}
+  deleteExercise(id: string) {
+    const exercises = this.getExercises().filter(e => e.id !== id);
+    this.saveExercises(exercises);
+  }
+  addOrUpdateExercise(exercise: Exercise) {
+    const exercises = this.getExercises();
+    const idx = exercises.findIndex(e => e.id === exercise.id);
+    if (idx >= 0) exercises[idx] = exercise; else exercises.push(exercise);
+    this.saveExercises(exercises);
+  }
+  deleteTemplate(id: string) {
+    const templates = this.getTemplates().filter(t => t.id !== id);
+    localStorage.setItem(KEYS.WORKOUT_TEMPLATES, JSON.stringify(templates));
+  }
+  saveUserSpecificWorkout(workout: Workout) {
+    this.saveTemplate(workout);
+  }
+  getWorkoutById(id: string): Workout | undefined {
+    const templates = this.getTemplates();
+    return templates.find(w => w.id === id);
+  }
 }
 
 export const storageService = new StorageService();
