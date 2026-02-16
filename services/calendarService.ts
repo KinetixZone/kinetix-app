@@ -1,11 +1,10 @@
+
 import { CalendarEvent, Workout, User } from '../types/kinetix';
 import { storageService } from './storageService';
 
 class CalendarService {
   private STORAGE_KEY = 'kinetix_calendar';
 
-  // HELPER CRÍTICO: Normaliza fechas a String Local YYYY-MM-DD
-  // Esto evita problemas de TimeZone (UTC vs Local)
   getLocalDateStr(date: Date): string {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -97,18 +96,22 @@ class CalendarService {
       return count;
   }
 
-  projectMesocycle(template: Workout, user: User, days: number[], startStr: string, weeks: number, location?: string): any {
+  projectMesocycle(template: Workout, user: User, days: number[], startStr: string, weeks: number, location?: string, offsetDays: number = 0): any {
       const events = this.getEvents();
       const baseDate = new Date(`${startStr}T12:00:00`);
+      // Aplicamos el offset si viene de una creación de mesociclo progresivo
+      baseDate.setDate(baseDate.getDate() + offsetDays);
+      
       let added = 0;
-
       const eventTitle = template.publicTitle || template.name;
 
       for(let w=0; w<weeks; w++) {
           days.forEach(dayIdx => {
               const currentBase = new Date(baseDate);
               currentBase.setDate(baseDate.getDate() + (w*7));
-              const diff = dayIdx - currentBase.getDay();
+              
+              // Lógica de ajuste al día de la semana correcto
+              let diff = dayIdx - currentBase.getDay();
               const targetDate = new Date(currentBase);
               targetDate.setDate(currentBase.getDate() + diff);
               
@@ -116,7 +119,7 @@ class CalendarService {
 
               if(!events.some(e => e.start.startsWith(dateStr) && e.athleteIds.includes(user.id))) {
                   events.push({
-                      id: `meso-${user.id}-${dateStr}`,
+                      id: `meso-${user.id}-${dateStr}-${template.id}`,
                       type: 'workout',
                       title: eventTitle,
                       start: `${dateStr}T12:00:00`,
