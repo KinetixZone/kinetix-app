@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Workout, User, ProgressState } from './types/kinetix';
 import { LiveTracker } from './components/workout/LiveTracker';
@@ -52,7 +53,6 @@ const App: React.FC = () => {
             else if (localUser.role === 'owner') setView('admin_dashboard');
             else setView('home');
         }
-        setAvailableTemplates(storageService.getTemplates());
         setIsLoading(false);
     };
     initApp();
@@ -60,7 +60,10 @@ const App: React.FC = () => {
 
   const refreshWorkoutContext = useCallback(() => {
     if (!user) return;
-    setAvailableTemplates(storageService.getTemplates());
+    
+    // MEJORA: El atleta solo recibe sus rutinas filtradas desde el servicio
+    setAvailableTemplates(storageService.getTemplates(user.role === 'client' ? user.id : undefined));
+    
     const today = new Date();
     const scheduledWorkoutId = calendarService.getScheduledSession(today, user.id);
     
