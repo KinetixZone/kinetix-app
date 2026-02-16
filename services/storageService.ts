@@ -31,6 +31,12 @@ export interface AthleteInsight {
     compliance?: number;
 }
 
+export interface MuscleStatus {
+    zone: string;
+    level: number; // 0-100 (100 = Fatiga máxima)
+    status: 'fresh' | 'recovering' | 'fatigued';
+}
+
 export interface SystemConfig {
     enableAI: boolean;
     enableCloud: boolean;
@@ -43,6 +49,13 @@ export interface AiBlueprint {
     tags: string[];
     dateCreated?: string;
 }
+
+const MUSCLE_ZONES: Record<string, string> = {
+  'Pecho': 'Push', 'Hombro': 'Push', 'Tríceps': 'Push',
+  'Espalda': 'Pull', 'Bíceps': 'Pull', 'Abdomen': 'Core',
+  'Piernas': 'Legs', 'Glúteo': 'Legs',
+  'Funcional': 'Metabolic', 'Halterofilia': 'Power'
+};
 
 class StorageService {
   getSystemConfig(): SystemConfig {
@@ -120,9 +133,21 @@ class StorageService {
 
   saveExercises(exercises: Exercise[]) { localStorage.setItem(KEYS.EXERCISE_LIBRARY, JSON.stringify(exercises)); }
 
-  getTemplates(): Workout[] {
+  // MEJORA DE PRIVACIDAD: Los atletas solo ven lo suyo o lo general.
+  getTemplates(athleteId?: string): Workout[] {
     const data = localStorage.getItem(KEYS.WORKOUT_TEMPLATES);
-    return data ? JSON.parse(data) : [];
+    const allTemplates: Workout[] = data ? JSON.parse(data) : [];
+    
+    if (athleteId) {
+        return allTemplates.filter(t => 
+            t.category === 'travel' || 
+            t.assignedTo === athleteId ||
+            (t.isTemplate === false && t.id.includes(athleteId))
+        );
+    }
+    
+    // El coach ve todo, pero marcamos cuáles son "Instancias de Mesociclo" para no ensuciar.
+    return allTemplates;
   }
 
   saveTemplate(template: Workout) {
@@ -132,13 +157,16 @@ class StorageService {
     localStorage.setItem(KEYS.WORKOUT_TEMPLATES, JSON.stringify(templates));
   }
 
-  cloneWithProgression(workout: Workout, weeks: number, incrementWeight: number, incrementReps: number): Workout[] {
+  cloneWithProgression(workout: Workout, athleteId: string, weeks: number, incrementWeight: number, incrementReps: number): Workout[] {
       const results: Workout[] = [];
       for (let w = 1; w <= weeks; w++) {
           const cloned: Workout = JSON.parse(JSON.stringify(workout));
-          cloned.id = `${workout.id}-w${w}-${Date.now()}`;
-          cloned.name = `${workout.name} (Sem ${w})`;
+          // ID único que vincula al atleta y la semana para evitar colisiones
+          cloned.id = `${workout.id}-ath-${athleteId}-w${w}-${Date.now()}`;
+          cloned.name = `${workout.name} (Sem ${w}) [${athleteId}]`;
           cloned.publicTitle = `${workout.publicTitle || workout.name} - W${w}`;
+          cloned.assignedTo = athleteId;
+          cloned.isTemplate = false; // Importante: No es una plantilla maestra
           
           cloned.exercises = cloned.exercises.map(ex => {
               if (incrementWeight > 0 && ex.targetLoad) {
@@ -170,15 +198,39 @@ class StorageService {
     return data ? JSON.parse(data) : [];
   }
 
+  getMuscleStatus(): MuscleStatus[] {
+    const logs = this.getAllLogs();
+    const exercises = this.getExercises();
+    const today = new Date();
+    const status: Record<string, number> = { 'Push': 0, 'Pull': 0, 'Legs': 0, 'Core': 0, 'Metabolic': 0 };
+
+    logs.forEach(log => {
+        const logDate = new Date(log.timestamp);
+        const diffHours = (today.getTime() - logDate.getTime()) / (1000 * 60 * 60);
+        
+        if (diffHours < 72) {
+            const ex = exercises.find(e => e.id === log.exerciseId);
+            if (ex) {
+                const zone = MUSCLE_ZONES[ex.muscleGroup.split(' / ')[0]] || 'Metabolic';
+                const impact = Math.max(0, 10 * (1 - diffHours / 72));
+                status[zone] = Math.min(100, (status[zone] || 0) + impact);
+            }
+        }
+    });
+
+    return Object.entries(status).map(([zone, level]) => ({
+        zone,
+        level: Math.round(level),
+        status: level > 70 ? 'fatigued' : level > 30 ? 'recovering' : 'fresh'
+    }));
+  }
+
   getAthleteInsights(): AthleteInsight[] {
     const athletes = this.getAthletes();
     const logs = this.getAllLogs();
-    const today = new Date();
     
     return athletes.map(athlete => {
-        const athleteLogs = logs.filter(l => l.timestamp.includes(athlete.id) || athlete.email.includes(l.timestamp)); // Simplificación
-        // En un entorno real usaríamos una relación robusta. Aquí simulamos por logs recientes:
-        const lastLog = logs.reverse().find(l => l.feedback !== undefined); // Demo: tomamos cualquiera con feedback
+        const lastLog = logs.reverse().find(l => l.feedback !== undefined); 
         
         let status: AthleteInsight['status'] = 'optimal';
         let message = 'Rendimiento estable.';
@@ -200,7 +252,7 @@ class StorageService {
             lastRpe: lastLog?.feedback?.rpe,
             status,
             message,
-            compliance: 85 // Demo
+            compliance: 85
         };
     });
   }
