@@ -153,7 +153,9 @@ export const WorkoutManager: React.FC = () => {
   useEffect(() => { refreshData(); }, []);
 
   const refreshData = () => {
-    setTemplates(storageService.getTemplates());
+    // El Coach ve solo las PLANTILLAS MAESTRAS en la lista principal para no saturar con clones
+    const all = storageService.getTemplates();
+    setTemplates(all.filter(t => t.isTemplate !== false));
     setAthletes(storageService.getAthletes());
   };
 
@@ -185,11 +187,32 @@ export const WorkoutManager: React.FC = () => {
   };
 
   const handleCreateMesocycle = () => {
-      if (!assignTarget) return;
-      const mesocycleSessions = storageService.cloneWithProgression(assignTarget, projConfig.weeks, projConfig.incWeight, projConfig.incReps);
-      mesocycleSessions.forEach(session => storageService.saveTemplate(session));
+      if (!assignTarget || !selectedAthleteId) return alert("Selecciona atleta y plantilla.");
+      
+      const mesocycleSessions = storageService.cloneWithProgression(
+          assignTarget, 
+          selectedAthleteId,
+          projConfig.weeks, 
+          projConfig.incWeight, 
+          projConfig.incReps
+      );
+
+      // Guardamos las sesiones y las agendamos
+      mesocycleSessions.forEach((session, weekIdx) => {
+          storageService.saveTemplate(session);
+          calendarService.projectMesocycle(
+              session, 
+              { id: selectedAthleteId } as any, 
+              projConfig.days, 
+              projConfig.startDate, // Esto se ajustará por semana internamente en projectMesocycle si lo llamamos con desfase
+              1, 
+              undefined,
+              weekIdx * 7 // Añadimos offset de semanas
+          );
+      });
+
       refreshData();
-      alert(`✅ Mesociclo de ${projConfig.weeks} semanas creado. Las rutinas progresivas están listas en tu lista.`);
+      alert(`✅ Mesociclo de ${projConfig.weeks} semanas desplegado para el atleta.`);
       setView('list');
   };
 
@@ -208,6 +231,11 @@ export const WorkoutManager: React.FC = () => {
       setEditingTemplate({ ...editingTemplate, exercises: [...editingTemplate.exercises, newEx] });
   };
 
+  const WEEK_DAYS = [
+      { id: 1, label: 'L' }, { id: 2, label: 'M' }, { id: 3, label: 'X' }, 
+      { id: 4, label: 'J' }, { id: 5, label: 'V' }, { id: 6, label: 'S' }, { id: 0, label: 'D' }
+  ];
+
   return (
     <div className="pt-20 pb-32 px-4 md:px-8 max-w-7xl mx-auto min-h-screen">
        <div className="mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
@@ -223,10 +251,10 @@ export const WorkoutManager: React.FC = () => {
                 {systemConfig.enableAI && <button onClick={() => setShowAiModal(true)} className="bg-gradient-to-r from-purple-900 to-purple-600 text-white px-8 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-all border border-purple-500/30">✨ AI ARCHITECT</button>}
              </div>
           )}
-          {view === 'editor' && (
+          {(view === 'editor' || view === 'meso' || view === 'assign') && (
              <div className="flex gap-4">
-                <button onClick={() => setView('list')} className="bg-white/5 border border-white/10 px-6 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest">CANCELAR</button>
-                <button onClick={handleSaveTemplate} className="bg-red-600 text-white px-8 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg">GUARDAR MASTER</button>
+                <button onClick={() => setView('list')} className="bg-white/5 border border-white/10 px-6 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest">VOLVER</button>
+                {view === 'editor' && <button onClick={handleSaveTemplate} className="bg-red-600 text-white px-8 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg">GUARDAR MASTER</button>}
              </div>
           )}
        </div>
@@ -250,9 +278,9 @@ export const WorkoutManager: React.FC = () => {
                         <span className="text-[8px] font-black uppercase bg-white/5 px-4 py-1.5 rounded-full text-white/40 tracking-widest">v2.0 MASTER</span>
                     </div>
                     <div className="col-span-6 md:col-span-4 flex justify-end gap-3">
-                        <button onClick={() => {setEditingTemplate({...tpl}); setView('editor');}} className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-white hover:text-black flex items-center justify-center text-sm border border-white/5 transition-all">✎</button>
-                        <button onClick={() => {setAssignTarget(tpl); setView('meso');}} className="px-5 h-12 rounded-2xl bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white flex items-center justify-center text-[10px] font-black uppercase tracking-widest border border-blue-600/20 transition-all">🏗 MESO</button>
-                        <button onClick={() => {setAssignTarget(tpl); setView('assign');}} className="w-12 h-12 rounded-2xl bg-green-600/10 hover:bg-green-600 text-green-500 hover:text-white flex items-center justify-center text-sm border border-green-600/20 transition-all">📅</button>
+                        <button onClick={() => {setEditingTemplate({...tpl}); setView('editor');}} title="Editar" className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-white hover:text-black flex items-center justify-center text-sm border border-white/5 transition-all">✎</button>
+                        <button onClick={() => {setAssignTarget(tpl); setView('meso');}} title="Mesociclo" className="px-5 h-12 rounded-2xl bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white flex items-center justify-center text-[10px] font-black uppercase tracking-widest border border-blue-600/20 transition-all">🏗 MESO</button>
+                        <button onClick={() => {setAssignTarget(tpl); setView('assign');}} title="Asignar" className="w-12 h-12 rounded-2xl bg-green-600/10 hover:bg-green-600 text-green-500 hover:text-white flex items-center justify-center text-sm border border-green-600/20 transition-all">📅</button>
                     </div>
                 </div>
                 ))}
@@ -299,13 +327,20 @@ export const WorkoutManager: React.FC = () => {
 
        {view === 'meso' && assignTarget && (
            <div className="animate-in zoom-in-95 max-w-2xl mx-auto bg-[#0F0F11] border border-blue-500/20 p-12 rounded-[50px] shadow-2xl relative">
-                <button onClick={() => setView('list')} className="absolute top-8 right-8 text-white/20 hover:text-white">✕</button>
                 <div className="mb-8">
                     <h2 className="text-3xl font-black uppercase italic tracking-tighter text-blue-500">Meso Architect</h2>
                     <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em] mt-2 italic">Proyección Progresiva Automática</p>
                 </div>
                 
                 <div className="space-y-10">
+                    <div className="space-y-4">
+                        <label className="text-[9px] font-black uppercase text-white/30 tracking-widest">Atleta Objetivo</label>
+                        <select className="w-full bg-black border border-white/10 rounded-2xl p-5 font-black text-white text-lg" value={selectedAthleteId} onChange={e => setSelectedAthleteId(e.target.value)}>
+                            <option value="">-- SELECCIONAR ATLETA --</option>
+                            {athletes.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                        </select>
+                    </div>
+
                     <div className="bg-white/5 p-8 rounded-[32px] border border-white/5 space-y-8">
                         <div>
                             <label className="text-[10px] font-black uppercase text-white/40 tracking-widest block mb-4">Alcance de la Progresión</label>
@@ -314,6 +349,15 @@ export const WorkoutManager: React.FC = () => {
                                     <button key={w} onClick={() => setProjConfig({...projConfig, weeks: w})} className={`flex-1 py-4 rounded-2xl font-black text-sm transition-all ${projConfig.weeks === w ? 'bg-blue-600 text-white shadow-lg scale-110' : 'bg-black text-white/20'}`}>{w} Sem</button>
                                 ))}
                             </div>
+                        </div>
+
+                        <div className="space-y-4">
+                           <label className="text-[10px] font-black uppercase text-white/40 tracking-widest block">Días de la Semana</label>
+                           <div className="flex justify-between gap-2">
+                               {WEEK_DAYS.map((d) => (
+                                   <button key={d.id} onClick={() => setProjConfig({...projConfig, days: projConfig.days.includes(d.id) ? projConfig.days.filter(x => x !== d.id) : [...projConfig.days, d.id]})} className={`w-10 h-10 rounded-full text-[10px] font-black transition-all ${projConfig.days.includes(d.id) ? 'bg-blue-600 text-white scale-110 shadow-lg' : 'bg-white/5 text-white/20'}`}>{d.label}</button>
+                               ))}
+                           </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-8">
@@ -334,24 +378,19 @@ export const WorkoutManager: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="bg-blue-600/5 p-6 rounded-3xl border border-blue-500/10 italic text-[10px] text-white/50 leading-relaxed">
-                        💡 Este motor clonará "{assignTarget.name}" por {projConfig.weeks} semanas. Cada nueva sesión tendrá los pesos ajustados automáticamente según tu regla de progresión. El Coach siempre mantiene el control final.
-                    </div>
-
-                    <button onClick={handleCreateMesocycle} className="w-full py-6 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase rounded-[24px] shadow-2xl transition-all active:scale-95 tracking-[0.4em] text-[10px]">CONSTRUIR MESOCICLO ⚡</button>
+                    <button onClick={handleCreateMesocycle} className="w-full py-6 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase rounded-[24px] shadow-2xl transition-all active:scale-95 tracking-[0.4em] text-[10px]">DESPLEGAR MESOCICLO ⚡</button>
                 </div>
            </div>
        )}
 
        {view === 'assign' && assignTarget && (
          <div className="animate-in zoom-in-95 max-w-xl mx-auto bg-[#0F0F11] border border-white/10 p-12 rounded-[50px] shadow-2xl relative">
-            <button onClick={() => setView('list')} className="absolute top-8 right-8 text-white/20 hover:text-white">✕</button>
             <h2 className="text-3xl font-black uppercase italic mb-8 tracking-tighter">Desplegar Protocolo</h2>
             <div className="space-y-8">
                <div className="space-y-2">
                    <label className="text-[9px] font-black uppercase text-white/30 tracking-widest">Atleta Objetivo</label>
                    <select className="w-full bg-black border border-white/10 rounded-2xl p-5 font-black text-white text-lg" value={selectedAthleteId} onChange={e => setSelectedAthleteId(e.target.value)}>
-                      <option value="">-- SELECCIONAR --</option>
+                      <option value="">-- SELECCIONAR ATLETA --</option>
                       {athletes.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                    </select>
                </div>
@@ -362,9 +401,9 @@ export const WorkoutManager: React.FC = () => {
                    </div>
                    <div className="space-y-2">
                        <label className="text-[9px] font-black uppercase text-white/30 tracking-widest">Días Semanales</label>
-                       <div className="flex gap-1">
-                           {[1,3,5].map(d => (
-                               <button key={d} onClick={() => setProjConfig({...projConfig, days: projConfig.days.includes(d) ? projConfig.days.filter(x => x !== d) : [...projConfig.days, d]})} className={`flex-1 py-3 rounded-lg text-[8px] font-black ${projConfig.days.includes(d) ? 'bg-red-600 text-white' : 'bg-white/5 text-white/30'}`}>{['','L','M','X','J','V','S','D'][d]}</button>
+                       <div className="flex gap-1 justify-between">
+                           {WEEK_DAYS.map(d => (
+                               <button key={d.id} onClick={() => setProjConfig({...projConfig, days: projConfig.days.includes(d.id) ? projConfig.days.filter(x => x !== d.id) : [...projConfig.days, d.id]})} className={`w-8 h-8 rounded-lg text-[8px] font-black transition-all ${projConfig.days.includes(d.id) ? 'bg-red-600 text-white' : 'bg-white/5 text-white/30'}`}>{d.label}</button>
                            ))}
                        </div>
                    </div>
