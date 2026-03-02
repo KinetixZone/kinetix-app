@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
   // Fix: Remove unnecessary type casting - process.cwd() is available in Node.js environment
   const env = loadEnv(mode, process.cwd(), '');
-  
+
   return {
     plugins: [react()],
     define: {
@@ -13,16 +13,15 @@ export default defineConfig(({ mode }) => {
       'process.env': JSON.stringify(env)
     },
     build: {
-      outDir: 'dist',
-      sourcemap: false,
+      target: 'esnext',
       minify: 'esbuild',
-      target: 'es2020',
+      sourcemap: false,
+      chunkSizeWarningLimit: 1000,
       rollupOptions: {
         output: {
           manualChunks: {
-            vendor: ['react', 'react-dom'],
-            // Add Google AI to vendor chunk for better caching
-            ai: ['@google/generative-ai']
+            vendor: ['react', 'react-dom']
+            // AI chunk will be added after dependency is properly installed
           }
         }
       }
@@ -33,9 +32,9 @@ export default defineConfig(({ mode }) => {
       // Add CORS headers for development
       cors: true
     },
-    // Optimize dependencies
+    // Optimize dependencies - only include installed packages
     optimizeDeps: {
-      include: ['react', 'react-dom', '@google/generative-ai']
+      include: ['react', 'react-dom']
     }
   };
 });
