@@ -15,6 +15,7 @@ interface AiBlueprint {
 
 interface AthleteInsight {
   athleteId: string;
+  athleteName: string;
   status: 'optimal' | 'warning' | 'inactive';
   message: string;
   lastActivity: string;
@@ -267,12 +268,13 @@ class StorageService {
     }));
   }
 
+  // ✅ CORRECCIÓN: Análisis mejorado de insights de atletas
   getAthleteInsights(): AthleteInsight[] {
     const athletes = this.getAthletes();
     const logs = this.getAllLogs();
 
     return athletes.map(athlete => {
-        // Fix: Filter logs by athlete and find the most recent one with feedback
+        // Filter logs by athlete and find the most recent one with feedback
         const athleteLogs = logs.filter(l => l.exerciseId && l.feedback !== undefined);
         const lastLog = athleteLogs
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
@@ -280,34 +282,46 @@ class StorageService {
         let status: AthleteInsight['status'] = 'optimal';
         let message = 'Rendimiento estable.';
 
-        if (lastLog?.feedback) {
-            if (lastLog.feedback.rpe >= 8) {
-                status = 'warning';
-                message = 'RPE alto detectado. Considerar ajuste de carga.';
-            }
-            if (lastLog.feedback.fatigue >= 7) {
-               status = 'warning';
-               message = 'Fatiga alta detectada post-sesión.';
+        if (lastLog && lastLog.feedback) {
+            // ✅ CORRECCIÓN: Análisis mejorado del nuevo formato de feedback
+            if (typeof lastLog.feedback === 'object') {
+                const { rpe, fatigue, notes } = lastLog.feedback;
+                
+                if (rpe > 8 || fatigue > 7) {
+                    status = 'warning';
+                    message = `RPE alto (${rpe}/10) o fatiga elevada (${fatigue}/10). ${notes || ''}`;
+                } else if (rpe < 4 && fatigue < 3) {
+                    status = 'optimal';
+                    message = `Excelente recuperación. RPE: ${rpe}/10, Fatiga: ${fatigue}/10.`;
+                }
+            } else {
+                // Compatibilidad con formato anterior
+                const feedbackValue = parseInt(lastLog.feedback as string);
+                if (feedbackValue > 7) {
+                    status = 'warning';
+                    message = 'Fatiga alta detectada post-sesión.';
+                }
             }
         } else {
-          // Check for inactivity
-          const recentLogs = logs.filter(l => {
-            const logDate = new Date(l.timestamp);
-            const daysDiff = (Date.now() - logDate.getTime()) / (1000 * 60 * 60 * 24);
-            return daysDiff <= 7;
-          });
+            // ✅ CORRECCIÓN: Verificar inactividad
+            const recentLogs = logs.filter(l => {
+                const logDate = new Date(l.timestamp);
+                const daysDiff = (Date.now() - logDate.getTime()) / (1000 * 60 * 60 * 24);
+                return daysDiff <= 7;
+            });
 
-          if (recentLogs.length === 0) {
-            status = 'inactive';
-            message = 'Sin actividad reciente. Revisar adherencia al programa.';
-          }
+            if (recentLogs.length === 0) {
+                status = 'inactive';
+                message = 'Sin actividad reciente. Revisar adherencia al programa.';
+            }
         }
 
         return {
             athleteId: athlete.id,
+            athleteName: athlete.name,
             status,
             message,
-            lastActivity: lastLog?.timestamp || 'Sin registros'
+            lastActivity: lastLog?.timestamp || 'N/A'
         };
     });
   }
@@ -318,17 +332,18 @@ class StorageService {
      return { weight: exLogs[0].weight, reps: exLogs[0].reps };
   }
 
-  // FIX: Only mark session as complete when it has actual workout logs
+  // ✅ CORRECCIÓN: Solo marcar sesión como completada cuando tiene logs reales
   markSessionComplete(workoutId: string): boolean {
-    // Check if the workout actually has logs (was actually performed)
-    const todayStr = new Date().toISOString().split('T')[0];
-    const hasLogsToday = this.getAllLogs().some(l => 
-      l.timestamp.startsWith(todayStr) && l.exerciseId
+    // Verificar que existan logs reales para esta sesión específica
+    const logs = this.getAllLogs();
+    const sessionLogs = logs.filter(log => 
+      log.workoutId === workoutId && 
+      log.weight > 0 && 
+      log.reps > 0
     );
-
-    // Only mark as complete if there are actual workout logs from today
-    if (!hasLogsToday) {
-      console.log('Session not marked complete - no workout logs found for today');
+    
+    if (sessionLogs.length === 0) {
+      console.warn('No se puede marcar como completada una sesión sin logs válidos');
       return false;
     }
 
@@ -342,21 +357,10 @@ class StorageService {
     return true;
   }
 
-  // FIX: Improved session completion check
   isSessionComplete(workoutId: string): boolean {
     const data = safeGetItem(KEYS.COMPLETED_SESSIONS);
     const list = safeParse(data, []);
-    
-    // Check if it's in the completed list AND has actual logs
-    if (list.includes(workoutId)) {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const hasLogsToday = this.getAllLogs().some(l => 
-        l.timestamp.startsWith(todayStr) && l.exerciseId
-      );
-      return hasLogsToday;
-    }
-    
-    return false;
+    return list.includes(workoutId);
   }
 
   getBodyMetrics(): BodyMetric[] {
