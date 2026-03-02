@@ -8,19 +8,14 @@ interface YouTubePlayerProps {
 
 const getYouTubeVideoId = (url: string): string | null => {
   if (!url) return null;
-  
   const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
   const match = url.match(regExp);
   return (match && match[7].length === 11) ? match[7] : null;
 };
 
-export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ 
-  videoUrl, 
-  title, 
-  className = "" 
-}) => {
+export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ videoUrl, title, className = "" }) => {
   const videoId = getYouTubeVideoId(videoUrl);
-
+  
   if (!videoId) {
     return (
       <div className={`bg-gray-100 rounded-lg p-4 text-center ${className}`}>
@@ -37,7 +32,7 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
   }
 
   const embedUrl = `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&showinfo=0`;
-
+  
   return (
     <div className={`relative bg-black rounded-lg overflow-hidden shadow-lg ${className}`}>
       <div className="aspect-video">
@@ -50,7 +45,6 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
           allowFullScreen
         />
       </div>
-      
       {title && (
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
           <h3 className="text-white text-sm font-medium truncate">{title}</h3>
