@@ -1,4 +1,3 @@
-
 import { User, Workout, WorkoutLog, Exercise, BodyMetric, Goal, UserLevel, WorkoutExercise } from '../types/kinetix';
 import { EXERCISES_DB } from '../constants/exercises';
 
@@ -57,86 +56,136 @@ const MUSCLE_ZONES: Record<string, string> = {
   'Funcional': 'Metabolic', 'Halterofilia': 'Power'
 };
 
+// Utility functions for safe localStorage operations
+const safeGetItem = (key: string): string | null => {
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    console.error(`Error reading from localStorage key "${key}":`, error);
+    return null;
+  }
+};
+
+const safeSetItem = (key: string, value: string): boolean => {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    console.error(`Error writing to localStorage key "${key}":`, error);
+    return false;
+  }
+};
+
+const safeParse = <T>(data: string | null, fallback: T): T => {
+  if (!data) return fallback;
+  try {
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error parsing JSON data:', error);
+    return fallback;
+  }
+};
+
 class StorageService {
   getSystemConfig(): SystemConfig {
-      try {
-          const data = localStorage.getItem(KEYS.SYSTEM_CONFIG);
-          return data ? JSON.parse(data) : { enableAI: true, enableCloud: true };
-      } catch (e) {
-          return { enableAI: true, enableCloud: true };
-      }
+    const data = safeGetItem(KEYS.SYSTEM_CONFIG);
+    return safeParse(data, { enableAI: true, enableCloud: true });
   }
 
-  saveSystemConfig(config: SystemConfig) {
-      localStorage.setItem(KEYS.SYSTEM_CONFIG, JSON.stringify(config));
+  saveSystemConfig(config: SystemConfig): boolean {
+    const success = safeSetItem(KEYS.SYSTEM_CONFIG, JSON.stringify(config));
+    if (success) {
       window.location.reload();
+    }
+    return success;
   }
 
-  saveUser(user: User) {
-    localStorage.setItem(KEYS.USER, JSON.stringify(user));
+  saveUser(user: User): boolean {
+    return safeSetItem(KEYS.USER, JSON.stringify(user));
   }
 
   getUser(): User | null {
-    const data = localStorage.getItem(KEYS.USER);
-    return data ? JSON.parse(data) : null;
+    const data = safeGetItem(KEYS.USER);
+    return safeParse(data, null);
   }
 
-  logout() {
-    localStorage.removeItem(KEYS.USER);
+  logout(): boolean {
+    try {
+      localStorage.removeItem(KEYS.USER);
+      return true;
+    } catch (error) {
+      console.error('Error during logout:', error);
+      return false;
+    }
   }
 
   getStaff(): User[] {
-    try {
-        const data = localStorage.getItem(KEYS.STAFF_DB);
-        return data ? JSON.parse(data) : [];
-    } catch(e) { return []; }
+    const data = safeGetItem(KEYS.STAFF_DB);
+    return safeParse(data, []);
   }
 
-  saveStaff(staff: User[]) {
-    localStorage.setItem(KEYS.STAFF_DB, JSON.stringify(staff));
+  saveStaff(staff: User[]): boolean {
+    return safeSetItem(KEYS.STAFF_DB, JSON.stringify(staff));
   }
 
-  saveAthletes(athletes: User[]) {
-    localStorage.setItem(KEYS.ATHLETES_DB, JSON.stringify(athletes));
+  saveAthletes(athletes: User[]): boolean {
+    return safeSetItem(KEYS.ATHLETES_DB, JSON.stringify(athletes));
   }
 
   getAthletes(): User[] {
-    try {
-        const data = localStorage.getItem(KEYS.ATHLETES_DB);
-        if (data) return JSON.parse(data);
-        const initialAthletes = this.getInitialAthletes();
-        this.saveAthletes(initialAthletes);
-        return initialAthletes;
-    } catch(e) { return []; }
+    const data = safeGetItem(KEYS.ATHLETES_DB);
+    const athletes = safeParse(data, null);
+    
+    if (athletes) return athletes;
+    
+    // Initialize with default athletes if none exist
+    const initialAthletes = this.getInitialAthletes();
+    this.saveAthletes(initialAthletes);
+    return initialAthletes;
   }
 
   private getInitialAthletes(): User[] {
     const today = new Date();
-    const nextMonth = new Date(); nextMonth.setDate(today.getDate() + 30);
+    const nextMonth = new Date(); 
+    nextMonth.setDate(today.getDate() + 30);
+    
     return [
         {
-            id: 'athlete-101', name: 'Alex T. (Demo)', email: 'alex@demo.com', goal: Goal.PERFORMANCE,
-            level: UserLevel.ADVANCED, role: 'client', daysPerWeek: 5, streak: 12, createdAt: '2023-01-01',
-            equipment: ['Full Gym'], isActive: true, cycleEndDate: nextMonth.toISOString().split('T')[0]
+            id: 'athlete-101', 
+            name: 'Alex T. (Demo)', 
+            email: 'alex@demo.com', 
+            goal: Goal.PERFORMANCE,
+            level: UserLevel.ADVANCED, 
+            role: 'client', 
+            daysPerWeek: 5, 
+            streak: 12, 
+            createdAt: '2023-01-01',
+            equipment: ['Full Gym'], 
+            isActive: true, 
+            cycleEndDate: nextMonth.toISOString().split('T')[0]
         }
     ];
   }
 
   getExercises(): Exercise[] {
-    try {
-      const data = localStorage.getItem(KEYS.EXERCISE_LIBRARY);
-      if (data) return JSON.parse(data);
-      this.saveExercises(EXERCISES_DB);
-      return EXERCISES_DB;
-    } catch (e) { return EXERCISES_DB; }
+    const data = safeGetItem(KEYS.EXERCISE_LIBRARY);
+    const exercises = safeParse(data, null);
+    
+    if (exercises) return exercises;
+    
+    // Initialize with default exercises if none exist
+    this.saveExercises(EXERCISES_DB);
+    return EXERCISES_DB;
   }
 
-  saveExercises(exercises: Exercise[]) { localStorage.setItem(KEYS.EXERCISE_LIBRARY, JSON.stringify(exercises)); }
+  saveExercises(exercises: Exercise[]): boolean {
+    return safeSetItem(KEYS.EXERCISE_LIBRARY, JSON.stringify(exercises));
+  }
 
   // MEJORA DE PRIVACIDAD: Los atletas solo ven lo suyo o lo general.
   getTemplates(athleteId?: string): Workout[] {
-    const data = localStorage.getItem(KEYS.WORKOUT_TEMPLATES);
-    const allTemplates: Workout[] = data ? JSON.parse(data) : [];
+    const data = safeGetItem(KEYS.WORKOUT_TEMPLATES);
+    const allTemplates: Workout[] = safeParse(data, []);
     
     if (athleteId) {
         return allTemplates.filter(t => 
@@ -150,11 +199,15 @@ class StorageService {
     return allTemplates;
   }
 
-  saveTemplate(template: Workout) {
+  saveTemplate(template: Workout): boolean {
     const templates = this.getTemplates();
     const idx = templates.findIndex(t => t.id === template.id);
-    if (idx >= 0) templates[idx] = template; else templates.push(template);
-    localStorage.setItem(KEYS.WORKOUT_TEMPLATES, JSON.stringify(templates));
+    if (idx >= 0) {
+      templates[idx] = template;
+    } else {
+      templates.push(template);
+    }
+    return safeSetItem(KEYS.WORKOUT_TEMPLATES, JSON.stringify(templates));
   }
 
   cloneWithProgression(workout: Workout, athleteId: string, weeks: number, incrementWeight: number, incrementReps: number): Workout[] {
@@ -188,21 +241,23 @@ class StorageService {
       return results;
   }
 
-  saveSessionLogs(logs: WorkoutLog[]) {
+  saveSessionLogs(logs: WorkoutLog[]): boolean {
     const current = this.getAllLogs();
-    localStorage.setItem(KEYS.LOG_HISTORY, JSON.stringify([...current, ...logs]));
+    return safeSetItem(KEYS.LOG_HISTORY, JSON.stringify([...current, ...logs]));
   }
 
   getAllLogs(): WorkoutLog[] {
-    const data = localStorage.getItem(KEYS.LOG_HISTORY);
-    return data ? JSON.parse(data) : [];
+    const data = safeGetItem(KEYS.LOG_HISTORY);
+    return safeParse(data, []);
   }
 
   getMuscleStatus(): MuscleStatus[] {
     const logs = this.getAllLogs();
     const exercises = this.getExercises();
     const today = new Date();
-    const status: Record<string, number> = { 'Push': 0, 'Pull': 0, 'Legs': 0, 'Core': 0, 'Metabolic': 0 };
+    const status: Record<string, number> = { 
+      'Push': 0, 'Pull': 0, 'Legs': 0, 'Core': 0, 'Metabolic': 0 
+    };
 
     logs.forEach(log => {
         const logDate = new Date(log.timestamp);
@@ -230,7 +285,10 @@ class StorageService {
     const logs = this.getAllLogs();
     
     return athletes.map(athlete => {
-        const lastLog = logs.reverse().find(l => l.feedback !== undefined); 
+        // Fix: Filter logs by athlete and find the most recent one with feedback
+        const athleteLogs = logs.filter(l => l.exerciseId && l.feedback !== undefined);
+        const lastLog = athleteLogs
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
         
         let status: AthleteInsight['status'] = 'optimal';
         let message = 'Rendimiento estable.';
@@ -243,6 +301,18 @@ class StorageService {
                 status = 'warning';
                 message = 'Fatiga alta detectada post-sesión.';
             }
+        } else {
+          // Check for inactivity
+          const recentLogs = logs.filter(l => {
+            const logDate = new Date(l.timestamp);
+            const daysDiff = (Date.now() - logDate.getTime()) / (1000 * 60 * 60 * 24);
+            return daysDiff <= 7;
+          });
+          
+          if (recentLogs.length === 0) {
+            status = 'inactive';
+            message = 'Sin actividad reciente. Revisar adherencia al programa.';
+          }
         }
 
         return {
@@ -267,84 +337,109 @@ class StorageService {
       return { weight: exLogs[0].weight, reps: exLogs[0].reps };
   }
 
-  markSessionComplete(workoutId: string) {
-    const data = localStorage.getItem(KEYS.COMPLETED_SESSIONS);
-    const list = data ? JSON.parse(data) : [];
+  markSessionComplete(workoutId: string): boolean {
+    const data = safeGetItem(KEYS.COMPLETED_SESSIONS);
+    const list = safeParse(data, []);
+    
     if (!list.includes(workoutId)) {
       list.push(workoutId);
-      localStorage.setItem(KEYS.COMPLETED_SESSIONS, JSON.stringify(list));
+      return safeSetItem(KEYS.COMPLETED_SESSIONS, JSON.stringify(list));
     }
+    return true;
   }
 
   isSessionComplete(workoutId: string): boolean {
-    const data = localStorage.getItem(KEYS.COMPLETED_SESSIONS);
-    const list = data ? JSON.parse(data) : [];
+    const data = safeGetItem(KEYS.COMPLETED_SESSIONS);
+    const list = safeParse(data, []);
     return list.includes(workoutId);
   }
 
   getBodyMetrics(): BodyMetric[] {
-    try {
-      const data = localStorage.getItem(KEYS.BODY_METRICS);
-      return data ? JSON.parse(data) : [];
-    } catch (e) { return []; }
+    const data = safeGetItem(KEYS.BODY_METRICS);
+    return safeParse(data, []);
   }
 
-  saveBodyMetric(metric: BodyMetric) {
+  saveBodyMetric(metric: BodyMetric): boolean {
     const metrics = this.getBodyMetrics();
-    localStorage.setItem(KEYS.BODY_METRICS, JSON.stringify([metric, ...metrics]));
+    return safeSetItem(KEYS.BODY_METRICS, JSON.stringify([metric, ...metrics]));
   }
 
-  getStorageUsage() { return { usedKB: 0, percentage: 5 }; }
+  getStorageUsage() { 
+    // Simple storage usage estimation
+    try {
+      let totalSize = 0;
+      for (const key in localStorage) {
+        if (localStorage.hasOwnProperty(key) && key.startsWith('kinetix_')) {
+          totalSize += localStorage[key].length;
+        }
+      }
+      const usedKB = Math.round(totalSize / 1024);
+      const percentage = Math.min(100, Math.round((usedKB / 5120) * 100)); // Assuming 5MB limit
+      return { usedKB, percentage };
+    } catch (error) {
+      console.error('Error calculating storage usage:', error);
+      return { usedKB: 0, percentage: 5 };
+    }
+  }
   
   getAiBlueprints(): AiBlueprint[] {
-    try {
-      const data = localStorage.getItem(KEYS.AI_BLUEPRINTS);
-      return data ? JSON.parse(data) : [];
-    } catch (e) { return []; }
+    const data = safeGetItem(KEYS.AI_BLUEPRINTS);
+    return safeParse(data, []);
   }
 
-  saveAiBlueprint(blueprint: AiBlueprint) {
+  saveAiBlueprint(blueprint: AiBlueprint): boolean {
     const blueprints = this.getAiBlueprints();
-    localStorage.setItem(KEYS.AI_BLUEPRINTS, JSON.stringify([blueprint, ...blueprints]));
+    return safeSetItem(KEYS.AI_BLUEPRINTS, JSON.stringify([blueprint, ...blueprints]));
   }
 
-  deleteAiBlueprint(id: string) {
+  deleteAiBlueprint(id: string): boolean {
     const blueprints = this.getAiBlueprints().filter(b => b.id !== id);
-    localStorage.setItem(KEYS.AI_BLUEPRINTS, JSON.stringify(blueprints));
+    return safeSetItem(KEYS.AI_BLUEPRINTS, JSON.stringify(blueprints));
   }
 
   getAiPrompts(): string[] {
-    try {
-      const data = localStorage.getItem(KEYS.AI_PROMPT_HISTORY);
-      return data ? JSON.parse(data) : [];
-    } catch (e) { return []; }
+    const data = safeGetItem(KEYS.AI_PROMPT_HISTORY);
+    return safeParse(data, []);
   }
 
-  saveAiPrompt(prompt: string) {
+  saveAiPrompt(prompt: string): boolean {
     const prompts = this.getAiPrompts();
-    if (prompts[0] === prompt) return;
+    if (prompts[0] === prompt) return true; // Already exists at top
+    
     const updated = [prompt, ...prompts].slice(0, 10);
-    localStorage.setItem(KEYS.AI_PROMPT_HISTORY, JSON.stringify(updated));
+    return safeSetItem(KEYS.AI_PROMPT_HISTORY, JSON.stringify(updated));
   }
 
-  init(d: any) {}
-  deleteExercise(id: string) {
-    const exercises = this.getExercises().filter(e => e.id !== id);
-    this.saveExercises(exercises);
+  init(d: any) {
+    // Initialization method - can be used for future setup
+    console.log('StorageService initialized');
   }
-  addOrUpdateExercise(exercise: Exercise) {
+
+  deleteExercise(id: string): boolean {
+    const exercises = this.getExercises().filter(e => e.id !== id);
+    return this.saveExercises(exercises);
+  }
+
+  addOrUpdateExercise(exercise: Exercise): boolean {
     const exercises = this.getExercises();
     const idx = exercises.findIndex(e => e.id === exercise.id);
-    if (idx >= 0) exercises[idx] = exercise; else exercises.push(exercise);
-    this.saveExercises(exercises);
+    if (idx >= 0) {
+      exercises[idx] = exercise;
+    } else {
+      exercises.push(exercise);
+    }
+    return this.saveExercises(exercises);
   }
-  deleteTemplate(id: string) {
+
+  deleteTemplate(id: string): boolean {
     const templates = this.getTemplates().filter(t => t.id !== id);
-    localStorage.setItem(KEYS.WORKOUT_TEMPLATES, JSON.stringify(templates));
+    return safeSetItem(KEYS.WORKOUT_TEMPLATES, JSON.stringify(templates));
   }
-  saveUserSpecificWorkout(workout: Workout) {
-    this.saveTemplate(workout);
+
+  saveUserSpecificWorkout(workout: Workout): boolean {
+    return this.saveTemplate(workout);
   }
+
   getWorkoutById(id: string): Workout | undefined {
     const templates = this.getTemplates();
     return templates.find(w => w.id === id);
