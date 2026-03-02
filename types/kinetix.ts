@@ -1,5 +1,3 @@
-
-
 export enum Goal { 
   LOSE_FAT = 'Bajar Grasa', 
   GAIN_MUSCLE = 'Subir Músculo', 
@@ -70,7 +68,13 @@ export interface WorkoutLog {
   reps: number;
   timestamp: string; 
   isPR: boolean;
-  executionMode?: 'Venue' | 'Remote' | 'Emergency_Home'; 
+  executionMode?: 'Venue' | 'Remote' | 'Emergency_Home';
+  // Fix: Added feedback property to support RPE and fatigue tracking
+  feedback?: {
+    rpe: number; // Rate of Perceived Exertion (1-10 scale)
+    fatigue: number; // Fatigue level (1-10 scale)
+    notes?: string; // Optional notes about the set
+  };
 }
 
 export interface BodyMetric {
