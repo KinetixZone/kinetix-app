@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Workout, ProgressState, WorkoutLog, WorkoutExercise, SessionFeedback } from '../../types/kinetix';
 import { soundService } from '../../services/soundService';
 import { storageService } from '../../services/storageService';
 import { aiService } from '../../services/aiService';
+import { YouTubePlayer } from '../YouTubePlayer';
 
 interface Props {
   workout: Workout;
@@ -165,7 +165,8 @@ export const LiveTracker: React.FC<Props> = ({ workout, onFinish, user }) => {
               weight: finalWeight,
               reps: finalReps,
               timestamp: new Date().toISOString(),
-              isPR: false
+              isPR: false,
+              workoutId: workout.id
           };
           soundService.playTone(800, 0.1);
           setProgress(p => ({ ...p, workoutLogs: [...p.workoutLogs, log] }));
@@ -228,6 +229,17 @@ export const LiveTracker: React.FC<Props> = ({ workout, onFinish, user }) => {
 
                         {isExpanded && (
                             <div className="p-4 border-t border-white/5 space-y-3 bg-black/20">
+                                {/* ✅ CORRECCIÓN: Agregar reproductor de YouTube para ejercicios */}
+                                {ex.videoUrl && (
+                                    <div className="mb-4">
+                                        <YouTubePlayer 
+                                            videoUrl={ex.videoUrl}
+                                            title={`Técnica: ${ex.name}`}
+                                            className="h-48 w-full"
+                                        />
+                                    </div>
+                                )}
+
                                 {rows.map((row, rIdx) => {
                                     const log = progress.workoutLogs.find(l => l.exerciseId === row.exerciseId && l.setIndex === row.globalIndex);
                                     return (
@@ -340,7 +352,14 @@ export const LiveTracker: React.FC<Props> = ({ workout, onFinish, user }) => {
 
                             <button 
                                 onClick={() => {
-                                    const updatedLogs = progress.workoutLogs.map(log => ({ ...log, feedback }));
+                                    const updatedLogs = progress.workoutLogs.map(log => ({ 
+                                        ...log, 
+                                        feedback: {
+                                            rpe: feedback.rpe,
+                                            fatigue: feedback.fatigue,
+                                            notes: feedback.notes
+                                        }
+                                    }));
                                     onFinish({ ...progress, workoutLogs: updatedLogs, sessionFeedback: feedback });
                                 }} 
                                 className="w-full py-6 bg-white text-black rounded-[24px] font-black uppercase tracking-[0.4em] text-[10px] shadow-xl hover:bg-red-600 hover:text-white transition-all"
