@@ -1,11 +1,11 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Workout } from "../types/kinetix";
 import { EXERCISES_DB } from "../constants/exercises";
 
 class AiService {
   public get isConfigured() {
     try {
-      const key = process.env.API_KEY;
+      const key = import.meta.env.VITE_GOOGLE_AI_API_KEY;
       return !!(key && key.length > 20 && !key.includes('placeholder'));
     } catch {
       return false;
@@ -43,20 +43,29 @@ class AiService {
     if (!this.isConfigured) return this.getSimulationWorkout();
     try {
       return await this.callWithRetry(async () => {
-        // Correct initialization with named parameter
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        // Correct initialization with Google Generative AI
+        const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY;
+        const ai = new GoogleGenerativeAI(apiKey);
+        
         const systemInstruction = `Eres Kinetix AI Architect. Genera JSON para rutinas. Usa solo estos IDs: ${availableExercises.map(e => e.id).join(', ')}.`;
         
-        // Upgrade to gemini-3-pro-preview for complex text tasks involving reasoning and JSON structure
-        const response = await ai.models.generateContent({
-          model: 'gemini-3-pro-preview',
-          contents: prompt,
-          config: { systemInstruction, responseMimeType: "application/json" }
+        // Use the correct model and API structure
+        const model = ai.getGenerativeModel({ 
+          model: 'gemini-1.5-pro',
+          systemInstruction: systemInstruction,
+          generationConfig: {
+            temperature: 0.7,
+            topP: 0.8,
+            maxOutputTokens: 2048,
+          },
         });
         
-        // .text is a property, not a method. Safe check before access.
-        if (!response.text) return this.getSimulationWorkout();
-        return JSON.parse(response.text.trim());
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        
+        if (!text) return this.getSimulationWorkout();
+        return JSON.parse(text.trim());
       });
     } catch (e) {
       console.error("AI Generation Error:", e);
@@ -69,8 +78,9 @@ class AiService {
     
     try {
       return await this.callWithRetry(async () => {
-        // Correct initialization with named parameter
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        // Correct initialization with Google Generative AI
+        const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY;
+        const ai = new GoogleGenerativeAI(apiKey);
         
         // PROTOCOLO DE SEGURIDAD Y CONCISIÓN v125.0
         const systemInstruction = `ERES EL AGENTE DE SOPORTE TÉCNICO Y BIOMECÁNICA DE KINETIX OPS. 
@@ -89,14 +99,22 @@ class AiService {
         
         REGLA DE ORO: No uses introducciones largas. Ve directo al grano. No actúes como coach personal.`;
 
-        // Upgrade to gemini-3-pro-preview for complex reasoning on biomechanics
-        const response = await ai.models.generateContent({
-          model: 'gemini-3-pro-preview',
-          contents: query,
-          config: { systemInstruction }
+        // Use the correct model and API structure
+        const model = ai.getGenerativeModel({ 
+          model: 'gemini-1.5-pro',
+          systemInstruction: systemInstruction,
+          generationConfig: {
+            temperature: 0.8,
+            topP: 0.9,
+            maxOutputTokens: 512,
+          },
         });
-        // .text is a property, not a method
-        return response.text?.trim() || "No se pudo procesar la consulta.";
+        
+        const result = await model.generateContent(query);
+        const response = await result.response;
+        const text = response.text();
+        
+        return text?.trim() || "No se pudo procesar la consulta.";
       });
     } catch (e) {
       console.error("AI Technical Advice Error:", e);
