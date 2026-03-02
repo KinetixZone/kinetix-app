@@ -1,58 +1,50 @@
 import { User, Workout, WorkoutLog, Exercise, BodyMetric, Goal, UserLevel, WorkoutExercise } from '../types/kinetix';
 import { EXERCISES_DB } from '../constants/exercises';
 
-const KEYS = {
-  USER: 'kinetix_user',
-  WORKOUT_TEMPLATES: 'kinetix_templates', 
-  CURRENT_WORKOUT: 'kinetix_current_active',
-  CALENDAR: 'kinetix_calendar',
-  SETTINGS: 'kinetix_settings',
-  PRS: 'kinetix_personal_records',
-  LOG_HISTORY: 'kinetix_workout_history',
-  CUSTOM_WORKOUTS: 'kinetix_custom_workouts',
-  COMPLETED_SESSIONS: 'kinetix_completed_sessions_ids',
-  EXERCISE_LIBRARY: 'kinetix_exercise_library_v2',
-  ATHLETES_DB: 'kinetix_athletes_db',
-  STAFF_DB: 'kinetix_staff_db',
-  BODY_METRICS: 'kinetix_body_metrics',
-  AI_PROMPT_HISTORY: 'kinetix_ai_prompts',
-  AI_BLUEPRINTS: 'kinetix_ai_blueprints',
-  SYSTEM_CONFIG: 'kinetix_system_config' 
-};
+interface SystemConfig {
+  enableAI: boolean;
+  enableCloud: boolean;
+}
 
-export interface AthleteInsight {
-    athleteId: string;
-    athleteName: string;
-    lastWorkoutDate?: string;
-    lastRpe?: number;
-    status: 'optimal' | 'warning' | 'critical' | 'inactive';
-    message: string;
-    compliance?: number;
+interface AiBlueprint {
+  id: string;
+  name: string;
+  prompt: string;
+  timestamp: string;
+}
+
+interface AthleteInsight {
+  athleteId: string;
+  status: 'optimal' | 'warning' | 'inactive';
+  message: string;
+  lastActivity: string;
 }
 
 export interface MuscleStatus {
-    zone: string;
-    level: number; // 0-100 (100 = Fatiga máxima)
-    status: 'fresh' | 'recovering' | 'fatigued';
+  zone: string;
+  level: number;
+  status: 'optimal' | 'recovering' | 'fatigued';
 }
 
-export interface SystemConfig {
-    enableAI: boolean;
-    enableCloud: boolean;
-}
-
-export interface AiBlueprint {
-    id: string;
-    title: string;
-    prompt: string;
-    tags: string[];
-    dateCreated?: string;
-}
+const KEYS = {
+  USER: 'kinetix_user',
+  SYSTEM_CONFIG: 'kinetix_system_config',
+  STAFF_DB: 'kinetix_staff_db',
+  ATHLETES_DB: 'kinetix_athletes_db',
+  EXERCISE_LIBRARY: 'kinetix_exercise_library',
+  WORKOUT_TEMPLATES: 'kinetix_workout_templates',
+  LOG_HISTORY: 'kinetix_log_history',
+  COMPLETED_SESSIONS: 'kinetix_completed_sessions',
+  BODY_METRICS: 'kinetix_body_metrics',
+  AI_BLUEPRINTS: 'kinetix_ai_blueprints',
+  AI_PROMPT_HISTORY: 'kinetix_ai_prompt_history'
+};
 
 const MUSCLE_ZONES: Record<string, string> = {
-  'Pecho': 'Push', 'Hombro': 'Push', 'Tríceps': 'Push',
-  'Espalda': 'Pull', 'Bíceps': 'Pull', 'Abdomen': 'Core',
-  'Piernas': 'Legs', 'Glúteo': 'Legs',
+  'Pecho': 'Push', 'Hombros': 'Push', 'Tríceps': 'Push', 'Deltoides': 'Push',
+  'Espalda': 'Pull', 'Bíceps': 'Pull', 'Dorsal': 'Pull', 'Trapecio': 'Pull',
+  'Cuádriceps': 'Legs', 'Glúteos': 'Legs', 'Isquiotibiales': 'Legs', 'Pantorrillas': 'Legs',
+  'Core': 'Core', 'Abdomen': 'Core', 'Oblicuos': 'Core',
   'Funcional': 'Metabolic', 'Halterofilia': 'Power'
 };
 
@@ -135,9 +127,9 @@ class StorageService {
   getAthletes(): User[] {
     const data = safeGetItem(KEYS.ATHLETES_DB);
     const athletes = safeParse(data, null);
-    
+
     if (athletes) return athletes;
-    
+
     // Initialize with default athletes if none exist
     const initialAthletes = this.getInitialAthletes();
     this.saveAthletes(initialAthletes);
@@ -148,7 +140,7 @@ class StorageService {
     const today = new Date();
     const nextMonth = new Date(); 
     nextMonth.setDate(today.getDate() + 30);
-    
+
     return [
         {
             id: 'athlete-101', 
@@ -170,9 +162,9 @@ class StorageService {
   getExercises(): Exercise[] {
     const data = safeGetItem(KEYS.EXERCISE_LIBRARY);
     const exercises = safeParse(data, null);
-    
+
     if (exercises) return exercises;
-    
+
     // Initialize with default exercises if none exist
     this.saveExercises(EXERCISES_DB);
     return EXERCISES_DB;
@@ -186,16 +178,14 @@ class StorageService {
   getTemplates(athleteId?: string): Workout[] {
     const data = safeGetItem(KEYS.WORKOUT_TEMPLATES);
     const allTemplates: Workout[] = safeParse(data, []);
-    
+
     if (athleteId) {
         return allTemplates.filter(t => 
-            t.category === 'travel' || 
-            t.assignedTo === athleteId ||
-            (t.isTemplate === false && t.id.includes(athleteId))
+            t.assignedTo === athleteId || 
+            t.assignedTo === 'general' || 
+            !t.assignedTo
         );
     }
-    
-    // El coach ve todo, pero marcamos cuáles son "Instancias de Mesociclo" para no ensuciar.
     return allTemplates;
   }
 
@@ -211,34 +201,31 @@ class StorageService {
   }
 
   cloneWithProgression(workout: Workout, athleteId: string, weeks: number, incrementWeight: number, incrementReps: number): Workout[] {
-      const results: Workout[] = [];
-      for (let w = 1; w <= weeks; w++) {
-          const cloned: Workout = JSON.parse(JSON.stringify(workout));
-          // ID único que vincula al atleta y la semana para evitar colisiones
-          cloned.id = `${workout.id}-ath-${athleteId}-w${w}-${Date.now()}`;
-          cloned.name = `${workout.name} (Sem ${w}) [${athleteId}]`;
-          cloned.publicTitle = `${workout.publicTitle || workout.name} - W${w}`;
-          cloned.assignedTo = athleteId;
-          cloned.isTemplate = false; // Importante: No es una plantilla maestra
-          
-          cloned.exercises = cloned.exercises.map(ex => {
-              if (incrementWeight > 0 && ex.targetLoad) {
-                  ex.targetLoad = ex.targetLoad.split(',').map(v => {
-                      const num = parseFloat(v.trim());
-                      return isNaN(num) ? v : (num + (incrementWeight * (w - 1))).toString();
-                  }).join(', ');
-              }
-              if (incrementReps > 0 && ex.targetReps) {
-                ex.targetReps = ex.targetReps.split(',').map(v => {
-                    const num = parseInt(v.trim());
-                    return isNaN(num) ? v : (num + (incrementReps * (w - 1))).toString();
-                }).join(', ');
-              }
-              return ex;
-          });
-          results.push(cloned);
+     const results: Workout[] = [];
+     for (let week = 1; week <= weeks; week++) {
+         const cloned: Workout = {
+             ...workout,
+             id: `${workout.id}-w${week}-${athleteId}`,
+             name: `${workout.name} - Semana ${week}`,
+             assignedTo: athleteId,
+             exercises: workout.exercises.map(ex => ({
+                 ...ex,
+                 targetReps: this.adjustReps(ex.targetReps, week, incrementReps),
+                 targetWeight: ex.targetWeight ? ex.targetWeight + (incrementWeight * (week - 1)) : undefined
+             }))
+         };
+         results.push(cloned);
+     }
+     return results;
+  }
+
+  private adjustReps(reps: string, week: number, increment: number): string {
+      if (reps.includes('-')) {
+          const [min, max] = reps.split('-').map(Number);
+          return `${min + increment * (week - 1)}-${max + increment * (week - 1)}`;
       }
-      return results;
+      const num = parseInt(reps);
+      return isNaN(num) ? reps : (num + increment * (week - 1)).toString();
   }
 
   saveSessionLogs(logs: WorkoutLog[]): boolean {
@@ -261,45 +248,46 @@ class StorageService {
 
     logs.forEach(log => {
         const logDate = new Date(log.timestamp);
-        const diffHours = (today.getTime() - logDate.getTime()) / (1000 * 60 * 60);
-        
-        if (diffHours < 72) {
-            const ex = exercises.find(e => e.id === log.exerciseId);
-            if (ex) {
-                const zone = MUSCLE_ZONES[ex.muscleGroup.split(' / ')[0]] || 'Metabolic';
-                const impact = Math.max(0, 10 * (1 - diffHours / 72));
-                status[zone] = Math.min(100, (status[zone] || 0) + impact);
-            }
+        const daysDiff = (today.getTime() - logDate.getTime()) / (1000 * 60 * 60 * 24);
+        if (daysDiff > 7) return;
+
+        const exercise = exercises.find(e => e.id === log.exerciseId);
+        if (exercise?.targetMuscles) {
+            exercise.targetMuscles.forEach(muscle => {
+                const zone = MUSCLE_ZONES[muscle] || 'Metabolic';
+                status[zone] += Math.max(0, 10 - daysDiff);
+            });
         }
     });
 
     return Object.entries(status).map(([zone, level]) => ({
         zone,
-        level: Math.round(level),
-        status: level > 70 ? 'fatigued' : level > 30 ? 'recovering' : 'fresh'
+        level: Math.min(100, level),
+        status: level > 70 ? 'fatigued' : level > 30 ? 'recovering' : 'optimal'
     }));
   }
 
   getAthleteInsights(): AthleteInsight[] {
     const athletes = this.getAthletes();
     const logs = this.getAllLogs();
-    
+
     return athletes.map(athlete => {
         // Fix: Filter logs by athlete and find the most recent one with feedback
         const athleteLogs = logs.filter(l => l.exerciseId && l.feedback !== undefined);
         const lastLog = athleteLogs
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
-        
+
         let status: AthleteInsight['status'] = 'optimal';
         let message = 'Rendimiento estable.';
-        
+
         if (lastLog?.feedback) {
-            if (lastLog.feedback.rpe >= 9) {
-                status = 'critical';
-                message = 'ALERTA: Esfuerzo límite reportado (RPE 9+). Riesgo de sobreentreno.';
-            } else if (lastLog.feedback.fatigue >= 4) {
+            if (lastLog.feedback.rpe >= 8) {
                 status = 'warning';
-                message = 'Fatiga alta detectada post-sesión.';
+                message = 'RPE alto detectado. Considerar ajuste de carga.';
+            }
+            if (lastLog.feedback.fatigue >= 7) {
+               status = 'warning';
+               message = 'Fatiga alta detectada post-sesión.';
             }
         } else {
           // Check for inactivity
@@ -308,7 +296,7 @@ class StorageService {
             const daysDiff = (Date.now() - logDate.getTime()) / (1000 * 60 * 60 * 24);
             return daysDiff <= 7;
           });
-          
+
           if (recentLogs.length === 0) {
             status = 'inactive';
             message = 'Sin actividad reciente. Revisar adherencia al programa.';
@@ -317,30 +305,36 @@ class StorageService {
 
         return {
             athleteId: athlete.id,
-            athleteName: athlete.name,
-            lastWorkoutDate: lastLog?.timestamp,
-            lastRpe: lastLog?.feedback?.rpe,
             status,
             message,
-            compliance: 85
+            lastActivity: lastLog?.timestamp || 'Sin registros'
         };
     });
   }
 
-  getLastPerformance(exerciseId: string): { weight: number, reps: number } | null {
-      const logs = this.getAllLogs();
-      const exLogs = logs
-          .filter(l => l.exerciseId === exerciseId)
-          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      
-      if (exLogs.length === 0) return null;
-      return { weight: exLogs[0].weight, reps: exLogs[0].reps };
+  getLastPerformance(exerciseId: string): { weight: number; reps: number } | null {
+     const exLogs = this.getAllLogs().filter(l => l.exerciseId === exerciseId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+     if (exLogs.length === 0) return null;
+     return { weight: exLogs[0].weight, reps: exLogs[0].reps };
   }
 
+  // FIX: Only mark session as complete when it has actual workout logs
   markSessionComplete(workoutId: string): boolean {
+    // Check if the workout actually has logs (was actually performed)
+    const todayStr = new Date().toISOString().split('T')[0];
+    const hasLogsToday = this.getAllLogs().some(l => 
+      l.timestamp.startsWith(todayStr) && l.exerciseId
+    );
+
+    // Only mark as complete if there are actual workout logs from today
+    if (!hasLogsToday) {
+      console.log('Session not marked complete - no workout logs found for today');
+      return false;
+    }
+
     const data = safeGetItem(KEYS.COMPLETED_SESSIONS);
     const list = safeParse(data, []);
-    
+
     if (!list.includes(workoutId)) {
       list.push(workoutId);
       return safeSetItem(KEYS.COMPLETED_SESSIONS, JSON.stringify(list));
@@ -348,10 +342,21 @@ class StorageService {
     return true;
   }
 
+  // FIX: Improved session completion check
   isSessionComplete(workoutId: string): boolean {
     const data = safeGetItem(KEYS.COMPLETED_SESSIONS);
     const list = safeParse(data, []);
-    return list.includes(workoutId);
+    
+    // Check if it's in the completed list AND has actual logs
+    if (list.includes(workoutId)) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const hasLogsToday = this.getAllLogs().some(l => 
+        l.timestamp.startsWith(todayStr) && l.exerciseId
+      );
+      return hasLogsToday;
+    }
+    
+    return false;
   }
 
   getBodyMetrics(): BodyMetric[] {
@@ -381,7 +386,7 @@ class StorageService {
       return { usedKB: 0, percentage: 5 };
     }
   }
-  
+
   getAiBlueprints(): AiBlueprint[] {
     const data = safeGetItem(KEYS.AI_BLUEPRINTS);
     return safeParse(data, []);
@@ -405,7 +410,7 @@ class StorageService {
   saveAiPrompt(prompt: string): boolean {
     const prompts = this.getAiPrompts();
     if (prompts[0] === prompt) return true; // Already exists at top
-    
+
     const updated = [prompt, ...prompts].slice(0, 10);
     return safeSetItem(KEYS.AI_PROMPT_HISTORY, JSON.stringify(updated));
   }
